@@ -1,13 +1,11 @@
-
 services:
-  # Go Backend
+  # Go API Server
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: api.Dockerfile
     container_name: ${PROJECT_NAME}-backend
-    ports:
-      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    network_mode: "host"
     environment:
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
@@ -16,10 +14,24 @@ services:
       - DB_NAME=${DB_NAME}
       - PORT=${BACKEND_PORT}
       - ENVIRONMENT=${ENVIRONMENT}
-    volumes:
-      - ./backend:/app
-    networks:
-      - app-network
+    restart: unless-stopped
+
+  # Go Worker
+  worker:
+    build:
+      context: ./backend
+      dockerfile: worker.Dockerfile
+    container_name: ${PROJECT_NAME}-worker
+    network_mode: "host"
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - ENVIRONMENT=${ENVIRONMENT}
+    depends_on:
+      - backend
     restart: unless-stopped
 
   # Next.js Frontend
@@ -28,8 +40,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: ${PROJECT_NAME}-frontend
-    ports:
-      - "${FRONTEND_PORT}:3000"
+    network_mode: "host"
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
       - NODE_ENV=${NODE_ENV}
@@ -39,10 +50,4 @@ services:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
-    networks:
-      - app-network
     restart: unless-stopped
-
-networks:
-  app-network:
-    driver: bridge
