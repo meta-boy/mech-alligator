@@ -17,12 +17,14 @@ import (
 type ScrapeJobHandler struct {
 	db      *database.DB
 	manager *scraper.Manager
+	queue   job.Queue
 }
 
-func NewScrapeJobHandler(db *database.DB, manager *scraper.Manager) *ScrapeJobHandler {
+func NewScrapeJobHandler(db *database.DB, manager *scraper.Manager, queue job.Queue) *ScrapeJobHandler {
 	return &ScrapeJobHandler{
 		db:      db,
 		manager: manager,
+		queue:   queue,
 	}
 }
 
@@ -111,10 +113,15 @@ func (h *ScrapeJobHandler) saveProductsToDB(ctx context.Context, products []scra
 	var errors []string
 
 	for _, product := range products {
-		err := h.saveProduct(ctx, product, payload)
+		productID, err := h.saveProduct(ctx, product, payload)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("Failed to save product %s: %v", product.Name, err))
 			continue
+		}
+
+		err = h.enqueueTagJob(ctx, productID)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("failed to enqueue tag job for product %s: %v", productID, err))
 		}
 
 		// Check if product was created or updated (simplified logic)
@@ -122,15 +129,16 @@ func (h *ScrapeJobHandler) saveProductsToDB(ctx context.Context, products []scra
 		productsCreated++
 
 		// Save product images
-		imageCount, imageErrors := h.saveProductImages(ctx, product)
+		imageCount, imageErrors := h.saveProductImages(ctx, productID, product.Images)
 		imagesProcessed += imageCount
 		errors = append(errors, imageErrors...)
+
 	}
 
 	return productsCreated, productsUpdated, imagesProcessed, errors
 }
 
-func (h *ScrapeJobHandler) saveProduct(ctx context.Context, product scraper.Product, payload job.ScrapeJobPayload) error {
+func (h *ScrapeJobHandler) saveProduct(ctx context.Context, product scraper.Product, payload job.ScrapeJobPayload) (string, error) {
 	// Check if product already exists
 	query := `
 		SELECT id FROM products 
@@ -142,7 +150,7 @@ func (h *ScrapeJobHandler) saveProduct(ctx context.Context, product scraper.Prod
 	err := h.db.QueryRowContext(ctx, query, product.Name, product.URL).Scan(&existingID)
 
 	if err != nil && err.Error() != "sql: no rows in result set" {
-		return fmt.Errorf("failed to check existing product: %w", err)
+		return "", fmt.Errorf("failed to check existing product: %w", err)
 	}
 
 	if existingID != "" {
@@ -154,7 +162,7 @@ func (h *ScrapeJobHandler) saveProduct(ctx context.Context, product scraper.Prod
 		`
 		_, err = h.db.ExecContext(ctx, updateQuery,
 			product.Description, product.Price, product.Currency, product.InStock, existingID)
-		return err
+		return existingID, err
 	}
 
 	// Create new product
@@ -168,25 +176,25 @@ func (h *ScrapeJobHandler) saveProduct(ctx context.Context, product scraper.Prod
 		id, product.Name, product.Description, product.Price,
 		product.Currency, product.URL, payload.ConfigID, product.InStock)
 
-	return err
+	return id, err
 }
 
-func (h *ScrapeJobHandler) saveProductImages(ctx context.Context, product scraper.Product) (int, []string) {
+func (h *ScrapeJobHandler) saveProductImages(ctx context.Context, productID string, images []string) (int, []string) {
 	var imageCount int
 	var errors []string
 
-	if len(product.Images) == 0 {
+	if len(images) == 0 {
 		return 0, nil
 	}
 
 	// Generate all image UUIDs for this product
-	imageUUIDs := make([]string, 0, len(product.Images))
+	imageUUIDs := make([]string, 0, len(images))
 	imageURLMap := make(map[string]string) // uuid -> url
-	for _, imageURL := range product.Images {
+	for _, imageURL := range images {
 		if imageURL == "" {
 			continue
 		}
-		imageID := h.generateImageID(product.ID, imageURL)
+		imageID := h.generateImageID(productID, imageURL)
 		imageUUIDs = append(imageUUIDs, imageID)
 		imageURLMap[imageID] = imageURL
 	}
@@ -223,7 +231,7 @@ func (h *ScrapeJobHandler) saveProductImages(ctx context.Context, product scrape
 				SET product_id = $1, url = $2, updated_at = CURRENT_TIMESTAMP
 				WHERE id = $3
 			`
-			_, err = h.db.ExecContext(ctx, updateQuery, product.ID, imageURL, existingID)
+			_, err = h.db.ExecContext(ctx, updateQuery, productID, imageURL, existingID)
 			if err != nil {
 				errors = append(errors, fmt.Sprintf("Failed to update image: %v", err))
 				continue
@@ -235,7 +243,7 @@ func (h *ScrapeJobHandler) saveProductImages(ctx context.Context, product scrape
 				INSERT INTO product_images (uuid, product_id, url, created_at, updated_at)
 				VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 			`
-			_, err = h.db.ExecContext(ctx, insertQuery, imageUUID, product.ID, imageURL)
+			_, err = h.db.ExecContext(ctx, insertQuery, imageUUID, productID, imageURL)
 			if err != nil {
 				errors = append(errors, fmt.Sprintf("Failed to insert image: %v", err))
 				continue
@@ -245,6 +253,23 @@ func (h *ScrapeJobHandler) saveProductImages(ctx context.Context, product scrape
 	}
 
 	return imageCount, errors
+}
+
+func (h *ScrapeJobHandler) enqueueTagJob(ctx context.Context, productID string) error {
+	payload := map[string]interface{}{
+		"product_id": productID,
+	}
+
+	j := &job.Job{
+		ID:          ulid.MustNew(ulid.Timestamp(time.Now()), rand.New(rand.NewSource(time.Now().UnixNano()))).String(),
+		Type:        job.JobTypeTagProduct,
+		Priority:    job.PriorityNormal,
+		Payload:     payload,
+		MaxAttempts: 3,
+		ScheduledAt: time.Now(),
+	}
+
+	return h.queue.Enqueue(ctx, j)
 }
 
 func (h *ScrapeJobHandler) generateImageID(productID, imageURL string) string {

@@ -47,7 +47,7 @@ func main() {
 
 	// Create scraper manager and register plugins
 	scraperManager := scraper.NewManager()
-	
+
 	// Register Shopify plugin
 	shopifyPlugin := shopify.NewShopifyPlugin()
 	if err := scraperManager.RegisterPlugin(shopifyPlugin); err != nil {
@@ -57,7 +57,11 @@ func main() {
 	log.Printf("Registered scraper plugins: Shopify")
 
 	// Create job handlers
-	scrapeHandler := jobs.NewScrapeJobHandler(db, scraperManager)
+	scrapeHandler := jobs.NewScrapeJobHandler(db, scraperManager, jobQueue)
+	tagHandler, err := jobs.NewTagJobHandler(db.DB)
+	if err != nil {
+		log.Fatalf("Failed to create tag job handler: %v", err)
+	}
 
 	// Create scheduler
 	workers := getWorkerCount()
@@ -65,6 +69,7 @@ func main() {
 
 	// Register handlers
 	scheduler.RegisterHandler(scrapeHandler)
+	scheduler.RegisterHandler(tagHandler)
 
 	log.Printf("Job scheduler configured with %d workers", workers)
 
@@ -97,12 +102,12 @@ func main() {
 
 func getWorkerCount() int {
 	workers := 3 // Default worker count
-	
+
 	if workerEnv := os.Getenv("WORKER_COUNT"); workerEnv != "" {
 		// Parse worker count from environment if available
 		// For simplicity, using default here
 		log.Printf("Using default worker count: %d", workers)
 	}
-	
+
 	return workers
 }

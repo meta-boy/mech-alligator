@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS jobs (
     id VARCHAR(255) PRIMARY KEY,
-    type VARCHAR(50) NOT NULL CHECK (type IN ('scrape_products', 'scrape_all_sites')),
+    type VARCHAR(50) NOT NULL CHECK (type IN ('scrape_products', 'scrape_all_sites', 'tag_product')),
     priority INTEGER DEFAULT 2 CHECK (priority BETWEEN 1 AND 4),
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
     payload JSONB NOT NULL DEFAULT '{}',

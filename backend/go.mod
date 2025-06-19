@@ -4,6 +4,7 @@ go 1.24.4
 
 require (
 	github.com/golang-migrate/migrate/v4 v4.18.3
+	github.com/jonathanhecl/gollama v1.0.30
 	github.com/lib/pq v1.10.9
 	github.com/oklog/ulid/v2 v2.1.1
 )

@@ -8,11 +8,11 @@ import (
 type Status string
 
 const (
-	StatusPending    Status = "pending"
-	StatusRunning    Status = "running"
-	StatusCompleted  Status = "completed"
-	StatusFailed     Status = "failed"
-	StatusCancelled  Status = "cancelled"
+	StatusPending   Status = "pending"
+	StatusRunning   Status = "running"
+	StatusCompleted Status = "completed"
+	StatusFailed    Status = "failed"
+	StatusCancelled Status = "cancelled"
 )
 
 type Priority int
@@ -29,6 +29,7 @@ type JobType string
 const (
 	JobTypeScrapeProducts JobType = "scrape_products"
 	JobTypeScrapeAllSites JobType = "scrape_all_sites"
+	JobTypeTagProduct     JobType = "tag_product"
 )
 
 type Job struct {
@@ -49,15 +50,15 @@ type Job struct {
 }
 
 type ScrapeJobPayload struct {
-	ConfigID     string            `json:"config_id"`
-	VendorID     string            `json:"vendor_id"`
-	VendorName   string            `json:"vendor_name"`
-	SiteURL      string            `json:"site_url"`
-	SiteType     string            `json:"site_type"`
-	Category     string            `json:"category"`
-	Credentials  map[string]string `json:"credentials,omitempty"`
-	Options      map[string]string `json:"options,omitempty"`
-	AllPages     bool              `json:"all_pages"`
+	ConfigID    string            `json:"config_id"`
+	VendorID    string            `json:"vendor_id"`
+	VendorName  string            `json:"vendor_name"`
+	SiteURL     string            `json:"site_url"`
+	SiteType    string            `json:"site_type"`
+	Category    string            `json:"category"`
+	Credentials map[string]string `json:"credentials,omitempty"`
+	Options     map[string]string `json:"options,omitempty"`
+	AllPages    bool              `json:"all_pages"`
 }
 
 type ScrapeJobResult struct {
