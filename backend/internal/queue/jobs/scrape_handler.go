@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/oklog/ulid/v2"
 	"log"
+	"math/rand"
 	"time"
 
 	"github.com/meta-boy/mech-alligator/internal/database"
@@ -161,8 +163,9 @@ func (h *ScrapeJobHandler) saveProduct(ctx context.Context, product scraper.Prod
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`
 
+	id := ulid.MustNew(ulid.Timestamp(time.Now()), rand.New(rand.NewSource(time.Now().UnixNano()))).String()[:15]
 	_, err = h.db.ExecContext(ctx, insertQuery,
-		product.ID, product.Name, product.Description, product.Price,
+		id, product.Name, product.Description, product.Price,
 		product.Currency, product.URL, payload.ConfigID, product.InStock)
 
 	return err
@@ -172,30 +175,48 @@ func (h *ScrapeJobHandler) saveProductImages(ctx context.Context, product scrape
 	var imageCount int
 	var errors []string
 
+	if len(product.Images) == 0 {
+		return 0, nil
+	}
+
+	// Generate all image UUIDs for this product
+	imageUUIDs := make([]string, 0, len(product.Images))
+	imageURLMap := make(map[string]string) // uuid -> url
 	for _, imageURL := range product.Images {
 		if imageURL == "" {
 			continue
 		}
-
-		// Generate UUID for image
 		imageID := h.generateImageID(product.ID, imageURL)
+		imageUUIDs = append(imageUUIDs, imageID)
+		imageURLMap[imageID] = imageURL
+	}
 
-		// Check if image already exists
-		query := `
-			SELECT id FROM product_images 
-			WHERE uuid = $1
-			LIMIT 1
-		`
+	if len(imageUUIDs) == 0 {
+		return 0, nil
+	}
 
-		var existingID string
-		err := h.db.QueryRowContext(ctx, query, imageID).Scan(&existingID)
+	// Fetch all existing image IDs in one query
+	query := `SELECT uuid, id FROM product_images WHERE uuid = ANY($1)`
+	rows, err := h.db.QueryContext(ctx, query, imageUUIDs)
+	if err != nil {
+		errors = append(errors, fmt.Sprintf("Failed to fetch existing images: %v", err))
+		return 0, errors
+	}
+	defer rows.Close()
 
-		if err != nil && err.Error() != "sql: no rows in result set" {
-			errors = append(errors, fmt.Sprintf("Failed to check existing image: %v", err))
+	existingImages := make(map[string]string) // uuid -> id
+	for rows.Next() {
+		var uuid, id string
+		if err := rows.Scan(&uuid, &id); err != nil {
+			errors = append(errors, fmt.Sprintf("Failed to scan image row: %v", err))
 			continue
 		}
+		existingImages[uuid] = id
+	}
 
-		if existingID != "" {
+	for _, imageUUID := range imageUUIDs {
+		imageURL := imageURLMap[imageUUID]
+		if existingID, ok := existingImages[imageUUID]; ok {
 			// Update existing image
 			updateQuery := `
 				UPDATE product_images 
@@ -207,20 +228,20 @@ func (h *ScrapeJobHandler) saveProductImages(ctx context.Context, product scrape
 				errors = append(errors, fmt.Sprintf("Failed to update image: %v", err))
 				continue
 			}
+			imageCount++
 		} else {
-			// Create new image
+			// Insert new image
 			insertQuery := `
-				INSERT INTO product_images (id, product_id, url, uuid, created_at, updated_at)
-				VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+				INSERT INTO product_images (uuid, product_id, url, created_at, updated_at)
+				VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 			`
-			_, err = h.db.ExecContext(ctx, insertQuery, imageID, product.ID, imageURL, imageID)
+			_, err = h.db.ExecContext(ctx, insertQuery, imageUUID, product.ID, imageURL)
 			if err != nil {
-				errors = append(errors, fmt.Sprintf("Failed to create image: %v", err))
+				errors = append(errors, fmt.Sprintf("Failed to insert image: %v", err))
 				continue
 			}
+			imageCount++
 		}
-
-		imageCount++
 	}
 
 	return imageCount, errors
