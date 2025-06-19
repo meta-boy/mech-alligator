@@ -56,7 +56,7 @@ func main() {
 
 	// Setup routes
 	mux := http.NewServeMux()
-	
+
 	// Add basic health check
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -72,7 +72,7 @@ func main() {
 	// Setup server
 	port := getPort()
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%s", port),
+		Addr:    fmt.Sprintf("0.0.0.0:%s", port),
 		Handler: loggedMux,
 	}
 
@@ -105,7 +105,7 @@ func main() {
 }
 
 func getPort() string {
-	port := os.Getenv("PORT")
+	port := os.Getenv("BACKEND_PORT")
 	if port == "" {
 		port = "8080"
 	}
@@ -115,10 +115,10 @@ func getPort() string {
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		
+
 		// Call the next handler
 		next.ServeHTTP(w, r)
-		
+
 		// Log the request
 		log.Printf("%s %s %v", r.Method, r.URL.Path, time.Since(start))
 	})

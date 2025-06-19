@@ -91,9 +91,6 @@ Rules:
 func NewTagJobHandler(db *sql.DB) (*TagJobHandler, error) {
 	g := gollama.New("gemma3:12b")
 	g.SystemPrompt = systemPrompt
-	if err := g.PullIfMissing(context.Background()); err != nil {
-		return nil, err
-	}
 
 	return &TagJobHandler{db: db, ollama: g}, nil
 }
