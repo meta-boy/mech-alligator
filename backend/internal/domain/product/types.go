@@ -13,26 +13,26 @@ type Product struct {
 	InStock     bool      `json:"in_stock" db:"in_stock"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
-	
+
 	// Joined data
-	Vendor     string   `json:"vendor,omitempty" db:"vendor"`
-	ImageURLs  []string `json:"image_urls,omitempty" db:"image_urls"`
-	Tags       []string `json:"tags,omitempty" db:"tags"`
+	Vendor    string   `json:"vendor,omitempty" db:"vendor"`
+	ImageURLs []string `json:"image_urls" db:"image_urls"`
+	Tags      []string `json:"tags" db:"tags"`
 }
 
 type ProductFilter struct {
 	// Search filters
-	Search      string   `json:"search,omitempty"`
-	Vendor      string   `json:"vendor,omitempty"`
-	ConfigID    string   `json:"config_id,omitempty"`
-	Currency    string   `json:"currency,omitempty"`
-	InStock     *bool    `json:"in_stock,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	
+	Search   string   `json:"search,omitempty"`
+	Vendor   string   `json:"vendor,omitempty"`
+	ConfigID string   `json:"config_id,omitempty"`
+	Currency string   `json:"currency,omitempty"`
+	InStock  *bool    `json:"in_stock,omitempty"`
+	Tags     []string `json:"tags,omitempty"`
+
 	// Price range filters
-	MinPrice    *float64 `json:"min_price,omitempty"`
-	MaxPrice    *float64 `json:"max_price,omitempty"`
-	
+	MinPrice *float64 `json:"min_price,omitempty"`
+	MaxPrice *float64 `json:"max_price,omitempty"`
+
 	// Date range filters
 	CreatedAfter  *time.Time `json:"created_after,omitempty"`
 	CreatedBefore *time.Time `json:"created_before,omitempty"`
@@ -56,19 +56,19 @@ type ProductListRequest struct {
 }
 
 type ProductListResponse struct {
-	Products   []Product         `json:"products"`
-	Pagination PaginationMeta    `json:"pagination"`
-	Filter     ProductFilter     `json:"filter,omitempty"`
-	Sort       ProductSort       `json:"sort,omitempty"`
+	Products   []Product      `json:"products"`
+	Pagination PaginationMeta `json:"pagination"`
+	Filter     ProductFilter  `json:"filter,omitempty"`
+	Sort       ProductSort    `json:"sort,omitempty"`
 }
 
 type PaginationMeta struct {
-	Page         int   `json:"page"`
-	PageSize     int   `json:"page_size"`
-	TotalItems   int64 `json:"total_items"`
-	TotalPages   int   `json:"total_pages"`
-	HasNext      bool  `json:"has_next"`
-	HasPrevious  bool  `json:"has_previous"`
+	Page        int   `json:"page"`
+	PageSize    int   `json:"page_size"`
+	TotalItems  int64 `json:"total_items"`
+	TotalPages  int   `json:"total_pages"`
+	HasNext     bool  `json:"has_next"`
+	HasPrevious bool  `json:"has_previous"`
 }
 
 func (p *ProductPagination) Validate() {
@@ -91,11 +91,11 @@ func (s *ProductSort) Validate() {
 		"created_at": true,
 		"updated_at": true,
 	}
-	
+
 	if !validFields[s.Field] {
 		s.Field = "created_at"
 	}
-	
+
 	if s.Order != "asc" && s.Order != "desc" {
 		s.Order = "desc"
 	}

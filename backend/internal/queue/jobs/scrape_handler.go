@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"log"
 	"time"
 
@@ -118,10 +119,10 @@ func (h *ScrapeJobHandler) saveProductsToDB(ctx context.Context, products []scra
 			continue
 		}
 
-		err = h.enqueueTagJob(ctx, productID)
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("failed to enqueue tag job for product %s: %v", productID, err))
-		}
+		//err = h.enqueueTagJob(ctx, productID)
+		//if err != nil {
+		//	errors = append(errors, fmt.Sprintf("failed to enqueue tag job for product %s: %v", productID, err))
+		//}
 
 		// Check if product was created or updated (simplified logic)
 		// In a real implementation, you'd track this properly
@@ -170,7 +171,7 @@ func (h *ScrapeJobHandler) saveProduct(ctx context.Context, product scraper.Prod
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`
 
-	id := uuid.New().String()
+	id := uuid.New().String()[:10]
 	_, err = h.db.ExecContext(ctx, insertQuery,
 		id, product.Name, product.Description, product.Price,
 		product.Currency, product.URL, payload.ConfigID, product.InStock)
@@ -204,7 +205,7 @@ func (h *ScrapeJobHandler) saveProductImages(ctx context.Context, productID stri
 
 	// Fetch all existing image IDs in one query
 	query := `SELECT uuid, id FROM product_images WHERE uuid = ANY($1)`
-	rows, err := h.db.QueryContext(ctx, query, imageUUIDs)
+	rows, err := h.db.QueryContext(ctx, query, pq.Array(imageUUIDs))
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Failed to fetch existing images: %v", err))
 		return 0, errors
@@ -213,12 +214,12 @@ func (h *ScrapeJobHandler) saveProductImages(ctx context.Context, productID stri
 
 	existingImages := make(map[string]string) // uuid -> id
 	for rows.Next() {
-		var uuid, id string
-		if err := rows.Scan(&uuid, &id); err != nil {
+		var imageUUID, id string
+		if err := rows.Scan(&imageUUID, &id); err != nil {
 			errors = append(errors, fmt.Sprintf("Failed to scan image row: %v", err))
 			continue
 		}
-		existingImages[uuid] = id
+		existingImages[imageUUID] = id
 	}
 
 	for _, imageUUID := range imageUUIDs {
@@ -238,11 +239,12 @@ func (h *ScrapeJobHandler) saveProductImages(ctx context.Context, productID stri
 			imageCount++
 		} else {
 			// Insert new image
+			imageID := uuid.New().String()[:10] // Generate a short ID like we do for products
 			insertQuery := `
-				INSERT INTO product_images (uuid, product_id, url, created_at, updated_at)
-				VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+				INSERT INTO product_images (id, uuid, product_id, url, created_at, updated_at)
+				VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 			`
-			_, err = h.db.ExecContext(ctx, insertQuery, imageUUID, productID, imageURL)
+			_, err = h.db.ExecContext(ctx, insertQuery, imageID, imageUUID, productID, imageURL)
 			if err != nil {
 				errors = append(errors, fmt.Sprintf("Failed to insert image: %v", err))
 				continue

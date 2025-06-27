@@ -28,19 +28,13 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string) (*product.Pr
 			COALESCE(v.name, '') as vendor,
 			COALESCE(
 				JSON_AGG(
-					CASE 
-						WHEN pi.url IS NOT NULL THEN pi.url 
-						ELSE NULL 
-					END
-				) FILTER (WHERE pi.url IS NOT NULL), 
+					DISTINCT pi.url
+				) FILTER (WHERE pi.url IS NOT NULL),
 				'[]'::json
 			) AS image_urls,
 			COALESCE(
 				JSON_AGG(
-					CASE 
-						WHEN pt.tag IS NOT NULL THEN pt.tag 
-						ELSE NULL 
-					END
+					DISTINCT pt.tag
 				) FILTER (WHERE pt.tag IS NOT NULL), 
 				'[]'::json
 			) AS tags
@@ -84,17 +78,13 @@ func (r *ProductRepository) GetByID(ctx context.Context, id string) (*product.Pr
 func (r *ProductRepository) List(ctx context.Context, req product.ProductListRequest) ([]product.Product, int64, error) {
 	// Build WHERE clause and args
 	whereClause, args := r.buildWhereClause(req.Filter)
-	
+
 	// Count total items
-	countQuery := fmt.Sprintf(`
-		SELECT COUNT(DISTINCT p.id)
-		FROM products p
-		LEFT JOIN site_configurations sc ON p.config_id = sc.id
-		LEFT JOIN vendors v ON sc.vendor_id = v.id
-		LEFT JOIN product_tags pt ON p.id = pt.product_id
-		%s
-	`, whereClause)
-	
+	countQuery := "SELECT COUNT(DISTINCT p.id) FROM products p LEFT JOIN site_configurations sc ON p.config_id = sc.id LEFT JOIN vendors v ON sc.vendor_id = v.id LEFT JOIN product_images pi ON p.id = pi.product_id LEFT JOIN product_tags pt ON p.id = pt.product_id"
+	if whereClause != "" {
+		countQuery += " " + whereClause
+	}
+
 	var total int64
 	err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
 	if err != nil {
@@ -102,40 +92,37 @@ func (r *ProductRepository) List(ctx context.Context, req product.ProductListReq
 	}
 
 	// Build main query
-	query := fmt.Sprintf(`
-		SELECT 
-			p.id, p.name, p.description, p.price, p.currency, p.url, 
-			p.config_id, p.in_stock, p.created_at, p.updated_at,
-			COALESCE(v.name, '') as vendor,
-			COALESCE(
-				JSON_AGG(
-					DISTINCT CASE 
-						WHEN pi.url IS NOT NULL THEN pi.url 
-						ELSE NULL 
-					END
-				) FILTER (WHERE pi.url IS NOT NULL), 
-				'[]'::json
-			) AS image_urls,
-			COALESCE(
-				JSON_AGG(
-					DISTINCT CASE 
-						WHEN pt.tag IS NOT NULL THEN pt.tag 
-						ELSE NULL 
-					END
-				) FILTER (WHERE pt.tag IS NOT NULL), 
-				'[]'::json
-			) AS tags
-		FROM products p
-		LEFT JOIN site_configurations sc ON p.config_id = sc.id
-		LEFT JOIN vendors v ON sc.vendor_id = v.id
-		LEFT JOIN product_images pi ON p.id = pi.product_id
-		LEFT JOIN product_tags pt ON p.id = pt.product_id
-		%s
-		GROUP BY p.id, p.name, p.description, p.price, p.currency, 
-				 p.url, p.config_id, p.in_stock, p.created_at, p.updated_at, v.name
-		ORDER BY p.%s %s
-		LIMIT $%d OFFSET $%d
-	`, whereClause, req.Sort.Field, req.Sort.Order, len(args)+1, len(args)+2)
+	query := `SELECT 
+		p.id, p.name, p.description, p.price, p.currency, p.url, 
+		p.config_id, p.in_stock, p.created_at, p.updated_at,
+		COALESCE(v.name, '') as vendor,
+		COALESCE(
+			JSON_AGG(
+				DISTINCT pi.url
+			) FILTER (WHERE pi.url IS NOT NULL),
+			'[]'::json
+		) AS image_urls,
+		COALESCE(
+			JSON_AGG(
+				DISTINCT pt.tag
+			) FILTER (WHERE pt.tag IS NOT NULL), 
+			'[]'::json
+		) AS tags
+	FROM products p
+	LEFT JOIN site_configurations sc ON p.config_id = sc.id
+	LEFT JOIN vendors v ON sc.vendor_id = v.id
+	LEFT JOIN product_images pi ON p.id = pi.product_id
+	LEFT JOIN product_tags pt ON p.id = pt.product_id`
+
+	if whereClause != "" {
+		query += " " + whereClause
+	}
+
+	query += ` GROUP BY p.id, p.name, p.description, p.price, p.currency, 
+		p.url, p.config_id, p.in_stock, p.created_at, p.updated_at, v.name`
+
+	query += fmt.Sprintf(" ORDER BY p.%s %s", req.Sort.Field, req.Sort.Order)
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
 
 	// Add pagination args
 	args = append(args, req.Pagination.PageSize, req.Pagination.Offset)
