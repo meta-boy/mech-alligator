@@ -1,33 +1,16 @@
-
 networks:
   app_network:
     driver: bridge
 
 services:
-  # Tailscale sidecar for network connectivity to external services
-  tailscale:
-    image: tailscale/tailscale:latest
-    hostname: ${PROJECT_NAME}-tailscale
-    environment:
-      - TS_AUTHKEY=${TS_AUTHKEY}  # Add this to your .env file
-      - TS_STATE_DIR=/var/lib/tailscale
-      - TS_USERSPACE=false
-    volumes:
-      - ./tailscale/state:/var/lib/tailscale
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    cap_add:
-      - net_admin
-    networks:
-      - app_network
-    restart: unless-stopped
-
   # Go API Server
   backend:
     build:
       context: ./backend
       dockerfile: api.Dockerfile
+    image: ${GITEA_REGISTRY_URL}/${PROJECT_NAME}/backend:${IMAGE_TAG:-latest}
     container_name: ${PROJECT_NAME}-backend
+    platform: linux/amd64 
     ports:
       - "${BACKEND_PORT}:${BACKEND_PORT}"
     networks:
@@ -40,8 +23,6 @@ services:
       - DB_NAME=${DB_NAME}
       - PORT=${BACKEND_PORT}
       - ENVIRONMENT=${ENVIRONMENT}
-    depends_on:
-      - tailscale
     restart: unless-stopped
 
   # Go Worker
@@ -49,7 +30,9 @@ services:
     build:
       context: ./backend
       dockerfile: worker.Dockerfile
+    image: ${GITEA_REGISTRY_URL}/${PROJECT_NAME}/worker:${IMAGE_TAG:-latest}
     container_name: ${PROJECT_NAME}-worker
+    platform: linux/amd64 
     networks:
       - app_network
     environment:
@@ -61,28 +44,5 @@ services:
       - ENVIRONMENT=${ENVIRONMENT}
       - OLLAMA_HOST=${OLLAMA_HOST}
     depends_on:
-      - tailscale
       - backend
-    restart: unless-stopped
-
-  # Next.js Frontend
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: ${PROJECT_NAME}-frontend
-    ports:
-      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
-    networks:
-      - app_network
-    environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-      - NODE_ENV=${NODE_ENV}
-    depends_on:
-      - tailscale
-      - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
     restart: unless-stopped
