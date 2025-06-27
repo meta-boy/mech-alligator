@@ -44,15 +44,18 @@ func main() {
 
 	// Create repositories
 	jobRepo := postgres.NewJobRepository(db)
+	productRepo := postgres.NewProductRepository(db)
 
 	// Create queue (same as worker)
 	jobQueue := queue.NewDatabaseQueue(jobRepo)
 
 	// Create services
 	jobService := service.NewJobService(db, jobQueue, nil) // scheduler not needed for API
+	productService := service.NewProductService(productRepo)
 
 	// Create handlers
 	jobHandler := handlers.NewJobHandler(jobService)
+	productHandler := handlers.NewProductHandler(productService)
 
 	// Setup routes
 	mux := http.NewServeMux()
@@ -65,6 +68,9 @@ func main() {
 
 	// Setup job routes
 	routes.SetupJobRoutes(mux, jobHandler)
+
+	// Setup product routes
+	routes.SetupProductRoutes(mux, productHandler)
 
 	// Add basic logging middleware
 	loggedMux := loggingMiddleware(mux)
