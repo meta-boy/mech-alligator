@@ -4,9 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/oklog/ulid/v2"
+	"github.com/google/uuid"
 	"log"
-	"math/rand"
 	"time"
 
 	"github.com/meta-boy/mech-alligator/internal/database"
@@ -171,7 +170,7 @@ func (h *ScrapeJobHandler) saveProduct(ctx context.Context, product scraper.Prod
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`
 
-	id := ulid.MustNew(ulid.Timestamp(time.Now()), rand.New(rand.NewSource(time.Now().UnixNano()))).String()[:15]
+	id := uuid.New().String()
 	_, err = h.db.ExecContext(ctx, insertQuery,
 		id, product.Name, product.Description, product.Price,
 		product.Currency, product.URL, payload.ConfigID, product.InStock)
@@ -261,7 +260,7 @@ func (h *ScrapeJobHandler) enqueueTagJob(ctx context.Context, productID string) 
 	}
 
 	j := &job.Job{
-		ID:          ulid.MustNew(ulid.Timestamp(time.Now()), rand.New(rand.NewSource(time.Now().UnixNano()))).String(),
+		ID:          uuid.New().String(),
 		Type:        job.JobTypeTagProduct,
 		Priority:    job.PriorityNormal,
 		Payload:     payload,
@@ -274,5 +273,5 @@ func (h *ScrapeJobHandler) enqueueTagJob(ctx context.Context, productID string) 
 
 func (h *ScrapeJobHandler) generateImageID(productID, imageURL string) string {
 	// Simple ID generation - in production, you might want to use UUID
-	return fmt.Sprintf("%s-%d", productID, len(imageURL))
+	return uuid.New().String()
 }

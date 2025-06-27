@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/meta-boy/mech-alligator/pkg/jwt"
+	"github.com/golang-jwt/jwt/v5"
+	customjwt "github.com/meta-boy/mech-alligator/pkg/jwt"
 )
 
 // AuthMiddleware checks for a valid bearer token.
@@ -30,7 +31,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		tokenString := parts[1]
-		token, err := jwt.ValidateToken(tokenString)
+		token, err := customjwt.ValidateToken(tokenString)
 		if err != nil || !token.Valid {
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
