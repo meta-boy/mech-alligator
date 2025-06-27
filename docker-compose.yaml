@@ -23,6 +23,7 @@ services:
       - DB_NAME=${DB_NAME}
       - PORT=${BACKEND_PORT}
       - ENVIRONMENT=${ENVIRONMENT}
+      - JWT_SECRET=${JWT_SECRET}
     restart: unless-stopped
 
   # Go Worker

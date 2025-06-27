@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/meta-boy/mech-alligator/internal/api/handlers"
+	"github.com/meta-boy/mech-alligator/internal/api/middleware"
 	"github.com/meta-boy/mech-alligator/internal/api/routes"
 	"github.com/meta-boy/mech-alligator/internal/config"
 	"github.com/meta-boy/mech-alligator/internal/database"
@@ -45,6 +46,7 @@ func main() {
 	// Create repositories
 	jobRepo := postgres.NewJobRepository(db)
 	productRepo := postgres.NewProductRepository(db)
+	userRepo := postgres.NewUserRepository(db)
 
 	// Create queue (same as worker)
 	jobQueue := queue.NewDatabaseQueue(jobRepo)
@@ -52,10 +54,12 @@ func main() {
 	// Create services
 	jobService := service.NewJobService(db, jobQueue, nil) // scheduler not needed for API
 	productService := service.NewProductService(productRepo)
+	userService := service.NewUserService(userRepo)
 
 	// Create handlers
 	jobHandler := handlers.NewJobHandler(jobService)
 	productHandler := handlers.NewProductHandler(productService)
+	userHandler := handlers.NewUserHandler(userService)
 
 	// Setup routes
 	mux := http.NewServeMux()
@@ -72,14 +76,20 @@ func main() {
 	// Setup product routes
 	routes.SetupProductRoutes(mux, productHandler)
 
+	// Setup user routes
+	routes.SetupUserRoutes(mux, userHandler)
+
 	// Add basic logging middleware
 	loggedMux := loggingMiddleware(mux)
+
+	// Add auth middleware
+	authMux := middleware.AuthMiddleware(loggedMux)
 
 	// Setup server
 	port := getPort()
 	server := &http.Server{
 		Addr:    fmt.Sprintf("0.0.0.0:%s", port),
-		Handler: loggedMux,
+		Handler: authMux,
 	}
 
 	// Start server in a goroutine
