@@ -13,7 +13,7 @@ import (
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// The health check endpoint is public and doesn't need authentication.
-		if r.URL.Path == "/health" {
+		if r.URL.Path == "/health" || r.URL.Path == "/api/login" {
 			next.ServeHTTP(w, r)
 			return
 		}
