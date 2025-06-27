@@ -10,16 +10,15 @@ import { Input } from "@/components/ui/input";
 import { 
   ExternalLink, 
   Package, 
-  Tag, 
   Search, 
-  Filter,
   Grid3X3,
   List,
-  TrendingUp,
-  DollarSign,
-  ShoppingBag,
-  Eye
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from "lucide-react";
+import { AuthManager } from "@/utils/auth";
 
 interface Product {
   id: string;
@@ -34,6 +33,7 @@ interface Product {
   updated_at: string;
   vendor: string;
   tags: string[];
+  image_urls: string[];
 }
 
 interface ProductResponse {
@@ -53,66 +53,6 @@ interface ProductResponse {
   };
 }
 
-// Mock data for demonstration
-const mockProducts: Product[] = [
-  {
-    id: "1",
-    name: "Premium Mechanical Keyboard Pro",
-    description: "High-quality mechanical keyboard with RGB lighting",
-    price: 15999,
-    currency: "INR",
-    url: "#",
-    config_id: "config1",
-    in_stock: true,
-    created_at: "2024-01-15",
-    updated_at: "2024-01-20",
-    vendor: "keychron",
-    tags: ["mechanical", "rgb", "wireless"]
-  },
-  {
-    id: "2",
-    name: "Ultra Compact 60% Keyboard",
-    description: "Space-saving compact design for minimalists",
-    price: 8999,
-    currency: "INR",
-    url: "#",
-    config_id: "config2",
-    in_stock: true,
-    created_at: "2024-01-10",
-    updated_at: "2024-01-18",
-    vendor: "anne pro",
-    tags: ["compact", "portable", "gaming"]
-  },
-  {
-    id: "3",
-    name: "Artisan Keycap Set - Cherry Profile",
-    description: "Premium PBT keycaps with unique artisan designs",
-    price: 4599,
-    currency: "INR",
-    url: "#",
-    config_id: "config3",
-    in_stock: false,
-    created_at: "2024-01-05",
-    updated_at: "2024-01-12",
-    vendor: "gmk",
-    tags: ["keycaps", "artisan", "cherry"]
-  },
-  {
-    id: "4",
-    name: "Gaming Mechanical Switch Tester",
-    description: "Test different switch types before buying",
-    price: 1299,
-    currency: "INR",
-    url: "#", 
-    config_id: "config4",
-    in_stock: true,
-    created_at: "2024-01-08",
-    updated_at: "2024-01-15",
-    vendor: "cherry",
-    tags: ["switches", "tester", "sample"]
-  }
-];
-
 export default function ProductDashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -120,14 +60,111 @@ export default function ProductDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [activeTab, setActiveTab] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    page_size: 20,
+    total_items: 0,
+    total_pages: 0,
+    has_next: false,
+    has_previous: false,
+  });
+
+  // Component for scrollable image gallery
+  const ImageGallery = ({ images, productName }: { images: string[], productName: string }) => {
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    
+    const nextImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setCurrentImageIndex((prev) => (prev + 1) % images.length);
+    };
+    
+    const prevImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+    };
+
+    if (!images || images.length === 0) {
+      return (
+        <div className="h-48 bg-gradient-to-br from-slate-100 to-slate-200 relative flex items-center justify-center">
+          <Package className="h-16 w-16 text-slate-400" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="h-48 bg-gradient-to-br from-slate-100 to-slate-200 relative overflow-hidden group">
+        <img
+          src={images[currentImageIndex]}
+          alt={`${productName} - Image ${currentImageIndex + 1}`}
+          className="w-full h-full object-cover transition-all duration-300"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.style.display = 'none';
+            target.nextElementSibling?.classList.remove('hidden');
+          }}
+        />
+        
+        {/* Fallback for broken images */}
+        <div className="absolute inset-0 hidden bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+          <Package className="h-16 w-16 text-slate-400" />
+        </div>
+
+        {/* Navigation buttons - only show if multiple images */}
+        {images.length > 1 && (
+          <>
+            <button
+              onClick={prevImage}
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              onClick={nextImage}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            
+            {/* Image indicators */}
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+              {images.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentImageIndex(index);
+                  }}
+                  className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                    index === currentImageIndex 
+                      ? 'bg-white' 
+                      : 'bg-white/50 hover:bg-white/70'
+                  }`}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
 
   useEffect(() => {
-    // Simulate API call
     const fetchProducts = async () => {
+      setLoading(true);
       try {
-        // Simulate loading delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setProducts(mockProducts);
+        const authManager = AuthManager.getInstance();
+        const url = `/api/products?page=${currentPage}&page_size=${pageSize}`;
+        const response = await authManager.makeAuthenticatedRequest(url);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch products');
+        }
+        
+        const data: ProductResponse = await response.json();
+        setProducts(data.products);
+        setPagination(data.pagination);
       } catch (err) {
         if (err instanceof Error) {
           setError(err.message);
@@ -140,13 +177,23 @@ export default function ProductDashboard() {
     };
 
     fetchProducts();
-  }, []);
+  }, [currentPage, pageSize]);
 
   const formatPrice = (price: number, currency: string) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: currency,
     }).format(price / 100);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setCurrentPage(1);
+    setPageSize(newPageSize);
   };
 
   const filteredProducts = products.filter(product => {
@@ -159,9 +206,6 @@ export default function ProductDashboard() {
     
     return matchesSearch && matchesTab;
   });
-
-  const totalRevenue = products.reduce((sum, product) => sum + product.price, 0);
-  const inStockCount = products.filter(p => p.in_stock).length;
 
   const ProductSkeleton = () => (
     <Card className="w-full">
@@ -239,58 +283,9 @@ export default function ProductDashboard() {
                 Products
               </h1>
               <p className="text-muted-foreground mt-1">
-                Manage your premium keyboard collection
+                Discover premium keyboards from top vendors
               </p>
             </div>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Package className="h-4 w-4 mr-2" />
-              Add Product
-            </Button>
-          </div>
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                    <ShoppingBag className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Products</p>
-                    <p className="text-2xl font-bold">{products.length}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                    <TrendingUp className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">In Stock</p>
-                    <p className="text-2xl font-bold">{inStockCount}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <DollarSign className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Value</p>
-                    <p className="text-2xl font-bold">{formatPrice(totalRevenue, "INR")}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </div>
 
@@ -314,8 +309,8 @@ export default function ProductDashboard() {
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
                   <TabsList className="bg-slate-100">
                     <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
-                    <TabsTrigger value="published" className="text-xs">Published</TabsTrigger>
-                    <TabsTrigger value="draft" className="text-xs">Draft</TabsTrigger>
+                    <TabsTrigger value="published" className="text-xs">Available</TabsTrigger>
+                    <TabsTrigger value="draft" className="text-xs">Out of Stock</TabsTrigger>
                   </TabsList>
                 </Tabs>
 
@@ -347,18 +342,18 @@ export default function ProductDashboard() {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredProducts.map((product) => (
               <Card key={product.id} className="group hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border-0 shadow-sm bg-white/80 backdrop-blur-sm overflow-hidden">
-                <div className="h-48 bg-gradient-to-br from-slate-100 to-slate-200 relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10" />
+                <div className="relative">
+                  <ImageGallery images={product.image_urls} productName={product.name} />
                   <div className="absolute top-4 right-4">
                     <Badge 
                       variant={product.in_stock ? "default" : "secondary"} 
                       className={product.in_stock ? "bg-green-500" : ""}
                     >
-                      {product.in_stock ? "Published" : "Draft"}
+                      {product.in_stock ? "Available" : "Out of Stock"}
                     </Badge>
                   </div>
                   <div className="absolute bottom-4 left-4 right-4">
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                    <div className="flex items-center gap-2 text-sm text-white drop-shadow-lg">
                       <Package className="h-4 w-4" />
                       <span className="capitalize font-medium">{product.vendor}</span>
                     </div>
@@ -373,10 +368,6 @@ export default function ProductDashboard() {
                   <div className="flex items-baseline gap-4 mb-4">
                     <div className="text-xl font-bold text-slate-900">
                       {formatPrice(product.price, product.currency)}
-                    </div>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <Eye className="h-3 w-3" />
-                      <span>66</span>
                     </div>
                   </div>
                   
@@ -416,8 +407,22 @@ export default function ProductDashboard() {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-6 flex-1">
-                      <div className="h-16 w-16 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
-                        <Package className="h-8 w-8 text-slate-500" />
+                      <div className="h-16 w-16 rounded-lg overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex-shrink-0">
+                        {product.image_urls && product.image_urls.length > 0 ? (
+                          <img
+                            src={product.image_urls[0]}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              target.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        <div className={`w-full h-full flex items-center justify-center ${product.image_urls && product.image_urls.length > 0 ? 'hidden' : ''}`}>
+                          <Package className="h-8 w-8 text-slate-500" />
+                        </div>
                       </div>
                       
                       <div className="flex-1">
@@ -427,7 +432,7 @@ export default function ProductDashboard() {
                             variant={product.in_stock ? "default" : "secondary"}
                             className={product.in_stock ? "bg-green-500" : ""}
                           >
-                            {product.in_stock ? "Published" : "Draft"}
+                            {product.in_stock ? "Available" : "Out of Stock"}
                           </Badge>
                         </div>
                         
@@ -442,24 +447,13 @@ export default function ProductDashboard() {
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-3">
-                        <div className="text-center">
-                          <div className="text-sm text-muted-foreground">Sales</div>
-                          <div className="font-semibold">66</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-sm text-muted-foreground">Revenue</div>
-                          <div className="font-semibold">{formatPrice(product.price * 66, product.currency)}</div>
-                        </div>
-                      </div>
-                      
                       <Button 
                         onClick={() => window.open(product.url, '_blank')}
                         disabled={!product.in_stock}
                         variant={product.in_stock ? "default" : "secondary"}
                       >
                         <ExternalLink className="h-4 w-4 mr-2" />
-                        View
+                        View Product
                       </Button>
                     </div>
                   </div>
@@ -469,6 +463,105 @@ export default function ProductDashboard() {
           </div>
         )}
 
+        {/* Pagination */}
+        {!loading && products.length > 0 && (
+          <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm mt-6">
+            <CardContent className="p-6">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                {/* Page info */}
+                <div className="text-sm text-muted-foreground">
+                  Showing {((pagination.page - 1) * pageSize) + 1} to{' '}
+                  {Math.min(pagination.page * pageSize, pagination.total_items)} of{' '}
+                  {pagination.total_items} products
+                </div>
+
+                {/* Pagination controls */}
+                <div className="flex items-center gap-2">
+                  {/* Page size selector */}
+                  <div className="flex items-center gap-2 mr-4">
+                    <span className="text-sm text-muted-foreground">Show:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                      className="px-2 py-1 text-sm border rounded-md bg-background"
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+
+                  {/* Navigation buttons */}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(1)}
+                      disabled={!pagination.has_previous}
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(pagination.page - 1)}
+                      disabled={!pagination.has_previous}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    
+                    {/* Page numbers */}
+                    <div className="flex items-center gap-1 mx-2">
+                      {Array.from({ length: Math.min(5, pagination.total_pages) }, (_, i) => {
+                        let pageNumber;
+                        if (pagination.total_pages <= 5) {
+                          pageNumber = i + 1;
+                        } else if (pagination.page <= 3) {
+                          pageNumber = i + 1;
+                        } else if (pagination.page >= pagination.total_pages - 2) {
+                          pageNumber = pagination.total_pages - 4 + i;
+                        } else {
+                          pageNumber = pagination.page - 2 + i;
+                        }
+
+                        return (
+                          <Button
+                            key={pageNumber}
+                            variant={pageNumber === pagination.page ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handlePageChange(pageNumber)}
+                            className="w-8 h-8 p-0"
+                          >
+                            {pageNumber}
+                          </Button>
+                        );
+                      })}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(pagination.page + 1)}
+                      disabled={!pagination.has_next}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(pagination.total_pages)}
+                      disabled={!pagination.has_next}
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Empty State */}
         {filteredProducts.length === 0 && !loading && (
           <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm">
@@ -476,12 +569,8 @@ export default function ProductDashboard() {
               <Package className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-xl font-semibold mb-2">No products found</h3>
               <p className="text-muted-foreground mb-6">
-                {searchTerm ? "Try adjusting your search terms" : "Start by adding your first product"}
+                {searchTerm ? "Try adjusting your search terms" : "No products available at the moment"}
               </p>
-              <Button>
-                <Package className="h-4 w-4 mr-2" />
-                Add Product
-              </Button>
             </CardContent>
           </Card>
         )}

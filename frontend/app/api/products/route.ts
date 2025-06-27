@@ -9,7 +9,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: 'No authentication token' }, { status: 401 });
     }
 
-    const response = await fetch(`${API_BASE_URL}/products`, {
+    // Get query parameters
+    const { searchParams } = new URL(req.url);
+    const page = searchParams.get('page') || '1';
+    const pageSize = searchParams.get('page_size') || '20';
+    
+    // Build the API URL with pagination parameters
+    const apiUrl = new URL(`${API_BASE_URL}/products`);
+    apiUrl.searchParams.set('page', page);
+    apiUrl.searchParams.set('page_size', pageSize);
+
+    const response = await fetch(apiUrl.toString(), {
       headers: {
         'Authorization': authHeader,
       },
