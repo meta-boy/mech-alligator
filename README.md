@@ -1,8 +1,18 @@
 # Mech-Alligator
 
-![Mech-Alligator Logo](./frontend/public/head-logo.png)
+<div align="center">
+    <img src="./frontend/public/head-logo.png" alt="Mech-Alligator Logo" width="300">
+</div>
 
-Mech-Alligator is a full-stack application designed to...
+## Overview
+
+Mech-Alligator is a full-stack application that aggregates products from reputable Indian resellers, providing users with a centralized platform to discover and compare products across multiple vendors.
+
+## Features
+
+- **Product Aggregation**: Consolidates inventory from trusted Indian resellers
+- **Unified Search**: Browse products across multiple vendors in one place
+- **Real-time Updates**: Stay current with the latest product availability and pricing
 
 ## Project Structure
 
