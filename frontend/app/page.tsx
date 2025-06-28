@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AuthManager } from "@/utils/auth";
 import { Product, ProductResponse, PaginationData, AppliedFilters } from "@/lib/types";
 import { LoadingSkeleton } from "@/components/products/LoadingSkeleton";
@@ -11,69 +12,66 @@ import { EmptyState } from "@/components/products/EmptyState";
 import { Pagination } from "@/components/products/Pagination";
 
 export default function ProductDashboard() {
+  const searchParams = useSearchParams();
+
+  const initialSearchTerm = searchParams.get('search') || '';
+  const initialFilters: AppliedFilters = {};
+  searchParams.forEach((value, key) => {
+    if (key !== 'search' && key !== 'page' && key !== 'pageSize') {
+      initialFilters[key as keyof AppliedFilters] = value;
+    }
+  });
+  const initialPage = parseInt(searchParams.get('page') || '1');
+  const initialPageSize = parseInt(searchParams.get('pageSize') || '20');
+
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [actualSearchTerm, setActualSearchTerm] = useState("");
-  const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({});
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const [actualSearchTerm, setActualSearchTerm] = useState(initialSearchTerm);
+  const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>(initialFilters);
+  const [currentPage, setCurrentPage] = useState(initialPage);
+  const [pageSize, setPageSize] = useState(initialPageSize);
   const [pagination, setPagination] = useState<PaginationData>({
-    page: 1,
-    page_size: 20,
+    page: initialPage,
+    page_size: initialPageSize,
     total: 0,
     total_pages: 0,
     has_next: false,
     has_prev: false,
   });
 
-  // Debounce search term for auto-search
-
   useEffect(() => {
     const fetchProducts = async () => {
-      // Set appropriate loading state
       if (currentPage === 1) {
         setLoading(true);
       } else {
         setIsSearching(true);
       }
-      
+
       try {
         const authManager = AuthManager.getInstance();
         let url = `/api/products?page=${currentPage}&page_size=${pageSize}`;
-        
-        // Add search term if present
+
         if (actualSearchTerm) {
           url += `&search=${encodeURIComponent(actualSearchTerm)}`;
         }
-        
-        // Add filters if present
-        if (appliedFilters.brand) {
-          url += `&brand=${encodeURIComponent(appliedFilters.brand)}`;
-        }
-        if (appliedFilters.reseller) {
-          url += `&reseller=${encodeURIComponent(appliedFilters.reseller)}`;
-        }
-        if (appliedFilters.category) {
-          url += `&category=${encodeURIComponent(appliedFilters.category)}`;
-        }
-        if (appliedFilters.sort_field) {
-          url += `&sort_field=${encodeURIComponent(appliedFilters.sort_field)}`;
-        }
-        if (appliedFilters.sort_order) {
-          url += `&sort_order=${encodeURIComponent(appliedFilters.sort_order)}`;
-        }
-        
+
+        Object.entries(appliedFilters).forEach(([key, value]) => {
+          if (value !== undefined) {
+            url += `&${key}=${encodeURIComponent(value)}`;
+          }
+        });
+
         const response = await authManager.makeAuthenticatedRequest(url);
-        
+
         if (!response.ok) {
           throw new Error('Failed to fetch products');
         }
-        
+
         const data: ProductResponse = await response.json();
-        setProducts(data.products || []); // Handle null products by defaulting to empty array
+        setProducts(data.products || []);
         setPagination(data.pagination);
       } catch (err) {
         if (err instanceof Error) {
@@ -90,7 +88,6 @@ export default function ProductDashboard() {
     fetchProducts();
   }, [currentPage, pageSize, actualSearchTerm, appliedFilters]);
 
-
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -103,17 +100,15 @@ export default function ProductDashboard() {
 
   const handleSearch = (term: string) => {
     setActualSearchTerm(term);
-    setCurrentPage(1); // Reset to first page when searching
-    setIsSearching(true); // Show immediate feedback
+    setCurrentPage(1);
+    setIsSearching(true);
   };
 
   const handleFiltersChange = (filters: AppliedFilters) => {
     setAppliedFilters(filters);
-    setCurrentPage(1); // Reset to first page when filters change
+    setCurrentPage(1);
   };
 
-  // Since we're using server-side filtering now, we don't need client-side filtering
-  // Just use the products directly from the API
   const filteredProducts = products;
 
   if (loading) {
@@ -140,9 +135,7 @@ export default function ProductDashboard() {
           </div>
         </div>
 
-        <ProductFilters 
-          searchTerm={searchTerm}
-          onSearchTermChange={setSearchTerm}
+        <ProductFilters
           onSearch={handleSearch}
           onFiltersChange={handleFiltersChange}
           isSearching={isSearching}
@@ -155,7 +148,7 @@ export default function ProductDashboard() {
         )}
 
         {!loading && products.length > 0 && (
-          <Pagination 
+          <Pagination
             pagination={pagination}
             pageSize={pageSize}
             onPageChange={handlePageChange}

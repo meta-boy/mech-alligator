@@ -3,28 +3,36 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, X } from "lucide-react";
-import { useState, KeyboardEvent, useEffect } from "react";
+import { useState, KeyboardEvent, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AuthManager } from "@/utils/auth";
 import { FilterOptions, AppliedFilters } from "@/lib/types";
 
 interface ProductFiltersProps {
-  searchTerm: string;
-  onSearchTermChange: (term: string) => void;
   onSearch: (term: string) => void;
   onFiltersChange: (filters: AppliedFilters) => void;
   isSearching?: boolean;
 }
 
 export const ProductFilters = ({ 
-  searchTerm, 
-  onSearchTermChange,
   onSearch,
   onFiltersChange,
   isSearching = false
 }: ProductFiltersProps) => {
-  const [inputValue, setInputValue] = useState(searchTerm);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const initialSearchTerm = searchParams.get('search') || '';
+  const initialFilters: AppliedFilters = {};
+  searchParams.forEach((value, key) => {
+    if (key !== 'search') {
+      initialFilters[key as keyof AppliedFilters] = value;
+    }
+  });
+
+  const [inputValue, setInputValue] = useState(initialSearchTerm);
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
-  const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({});
+  const [pendingFilters, setPendingFilters] = useState<AppliedFilters>(initialFilters);
   const [loadingFilters, setLoadingFilters] = useState(true);
 
   // Fetch filter options on component mount
@@ -48,13 +56,36 @@ export const ProductFilters = ({
     fetchFilterOptions();
   }, []);
 
+  const createQueryString = useCallback(
+    (name: string, value: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set(name, value);
+      return params.toString();
+    },
+    [searchParams]
+  );
+
   const handleInputChange = (value: string) => {
     setInputValue(value);
-    onSearchTermChange(value);
+  };
+
+  const applyFilters = () => {
+    const params = new URLSearchParams();
+    if (inputValue) {
+      params.set('search', inputValue);
+    }
+    Object.entries(pendingFilters).forEach(([key, value]) => {
+      if (value !== undefined) {
+        params.set(key, value);
+      }
+    });
+    router.push(`/?${params.toString()}`);
+    onSearch(inputValue);
+    onFiltersChange(pendingFilters);
   };
 
   const handleSearch = () => {
-    onSearch(inputValue);
+    applyFilters();
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -64,20 +95,21 @@ export const ProductFilters = ({
   };
 
   const handleFilterChange = (filterType: keyof AppliedFilters, value: string) => {
-    const newFilters = {
-      ...appliedFilters,
+    setPendingFilters(prevFilters => ({
+      ...prevFilters,
       [filterType]: value === 'all' ? undefined : value
-    };
-    setAppliedFilters(newFilters);
-    onFiltersChange(newFilters);
+    }));
   };
 
   const clearFilters = () => {
-    setAppliedFilters({});
+    setInputValue('');
+    setPendingFilters({});
+    router.push('/');
+    onSearch('');
     onFiltersChange({});
   };
 
-  const hasActiveFilters = Object.values(appliedFilters).some(value => value !== undefined);
+  const hasActiveFilters = Object.values(pendingFilters).some(value => value !== undefined) || inputValue !== '';
 
   if (loadingFilters) {
     return (
@@ -123,7 +155,7 @@ export const ProductFilters = ({
               {/* Brand Filter */}
               <div className="min-w-[160px]">
                 <Select
-                  value={appliedFilters.brand || 'all'}
+                  value={pendingFilters.brand || 'all'}
                   onValueChange={(value) => handleFilterChange('brand', value)}
                 >
                   <SelectTrigger className="bg-slate-50 border-0">
@@ -143,7 +175,7 @@ export const ProductFilters = ({
               {/* Reseller Filter */}
               <div className="min-w-[160px]">
                 <Select
-                  value={appliedFilters.reseller || 'all'}
+                  value={pendingFilters.reseller || 'all'}
                   onValueChange={(value) => handleFilterChange('reseller', value)}
                 >
                   <SelectTrigger className="bg-slate-50 border-0">
@@ -163,7 +195,7 @@ export const ProductFilters = ({
               {/* Category Filter */}
               <div className="min-w-[160px]">
                 <Select
-                  value={appliedFilters.category || 'all'}
+                  value={pendingFilters.category || 'all'}
                   onValueChange={(value) => handleFilterChange('category', value)}
                 >
                   <SelectTrigger className="bg-slate-50 border-0">
@@ -183,7 +215,7 @@ export const ProductFilters = ({
               {/* Sort Field Filter */}
               <div className="min-w-[160px]">
                 <Select
-                  value={appliedFilters.sort_field || 'name'}
+                  value={pendingFilters.sort_field || 'name'}
                   onValueChange={(value) => handleFilterChange('sort_field', value)}
                 >
                   <SelectTrigger className="bg-slate-50 border-0">
@@ -202,7 +234,7 @@ export const ProductFilters = ({
               {/* Sort Order Filter */}
               <div className="min-w-[120px]">
                 <Select
-                  value={appliedFilters.sort_order || 'asc'}
+                  value={pendingFilters.sort_order || 'asc'}
                   onValueChange={(value) => handleFilterChange('sort_order', value)}
                 >
                   <SelectTrigger className="bg-slate-50 border-0">
@@ -214,6 +246,15 @@ export const ProductFilters = ({
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Apply Filters Button */}
+              <Button
+                onClick={applyFilters}
+                size="sm"
+                className="h-10 px-3"
+              >
+                Apply Filters
+              </Button>
 
               {/* Clear Filters Button */}
               {hasActiveFilters && (
