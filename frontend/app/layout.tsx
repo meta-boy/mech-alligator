@@ -16,6 +16,29 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "Mech Alligator",
   description: "A one-stop shop for all your mechanical keyboard needs",
+  openGraph: {
+    title: "Mech Alligator",
+    description: "Discover premium keyboards and keycaps from top resellers",
+    url: "https://agg.regator.site/",
+    siteName: "Mech Alligator",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Mech Alligator - Premium Mechanical Keyboards",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Mech Alligator",
+    description: "Discover premium keyboards and keycaps from top resellers",
+    images: ["/og-image.png"],
+  },
+  metadataBase: new URL("https://agg.regator.site/"),
 };
 
 export default function RootLayout({

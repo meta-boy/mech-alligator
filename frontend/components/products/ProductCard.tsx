@@ -38,30 +38,24 @@ export const ProductCard = ({ product }: ProductCardProps) => (
       <CardTitle className="text-lg leading-tight line-clamp-2 group-hover:text-blue-600 transition-colors mb-2">
         {product.name}
       </CardTitle>
-      
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         <Badge variant="secondary" className="text-xs">
           {product.category}
         </Badge>
         <Badge variant="outline" className="text-xs">
           {product.variant_count} variant{product.variant_count !== 1 ? 's' : ''}
         </Badge>
+        {product.tags.slice(0, 2).map((tag) => (
+          <Badge key={tag} variant="outline" className="text-xs border-slate-200">
+            {tag}
+          </Badge>
+        ))}
+        {product.tags.length > 2 && (
+          <Badge variant="outline" className="text-xs border-slate-200">
+            +{product.tags.length - 2}
+          </Badge>
+        )}
       </div>
-      
-      {product.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {product.tags.slice(0, 2).map((tag) => (
-            <Badge key={tag} variant="outline" className="text-xs border-slate-200">
-              {tag}
-            </Badge>
-          ))}
-          {product.tags.length > 2 && (
-            <Badge variant="outline" className="text-xs border-slate-200">
-              +{product.tags.length - 2}
-            </Badge>
-          )}
-        </div>
-      )}
     </CardContent>
   </Card>
 );
