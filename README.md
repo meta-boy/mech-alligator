@@ -4,79 +4,62 @@
     <img src="./frontend/public/head-logo.png" alt="Mech-Alligator Logo" width="300">
 </div>
 
-## Overview
+A product aggregation platform that brings together inventory from trusted Indian resellers, making it easier to find and compare products without hopping between different websites.
 
-Mech-Alligator is a full-stack application that aggregates products from reputable Indian resellers, providing users with a centralized platform to discover and compare products across multiple vendors.
+## What does it do?
 
-## Features
+Ever wished you could search across multiple Indian resellers at once? That's exactly what Mech-Alligator does. Instead of opening 10 different tabs to check if a product is available, you can search once and see results from all our partner resellers.
 
-- **Product Aggregation**: Consolidates inventory from trusted Indian resellers
-- **Unified Search**: Browse products across multiple vendors in one place
-- **Real-time Updates**: Stay current with the latest product availability and pricing
+**Core features:**
+- Search products across multiple Indian resellers simultaneously
+- Compare prices and availability in real-time
+- Clean, unified interface that doesn't make your eyes bleed
+- No more bookmark folders with 50+ reseller websites
 
-## Project Structure
+## Tech Stack
 
-This project is composed of two main parts:
+**Frontend**: Next.js with TypeScript and Tailwind CSS - because we like our code typed and our styles utility-first.
 
-### Frontend
+**Backend**: Go with PostgreSQL - fast, reliable, and handles concurrent requests like a champ.
 
-The frontend is a Next.js application. It provides the user interface for interacting with the backend services.
+**Infrastructure**: Dockerized everything because "it works on my machine" isn't good enough.
 
-- **Framework**: Next.js
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
+## Quick Start
 
-### Backend
+### What you'll need
+- Docker and Docker Compose (if you don't have these, get them first)
+- About 5 minutes of your time
 
-The backend is a Go application that provides the API services and handles background tasks.
+### Getting it running
 
-- **Language**: Go
-- **Database**: PostgreSQL (implied by `lib/pq` and `migrate/v4` in `go.mod`)
-- **Task Queue**: (Implied by `worker` service in `docker-compose.yaml`)
+1. Clone this repo:
+   ```bash
+   git clone <repository-url>
+   cd mech-alligator
+   ```
 
-## Getting Started
+2. Set up your environment variables:
+   ```bash
+   cp .env.example .env
+   ```
+   Open `.env` and fill in your configuration. Don't skip this step - the app won't work without proper environment variables.
 
-To get the project up and running, follow these steps:
+3. Fire it up:
+   ```bash
+   docker-compose up --build
+   ```
 
-### Prerequisites
+That's it. Docker will handle building everything and getting the services talking to each other.
 
-- Docker
-- Docker Compose
+### Where to find your app
 
-### Setup
+- **Frontend**: http://localhost:3000 (or whatever port you configured)
+- **Backend API**: http://localhost:8080 (or your configured backend port)
 
-1.  **Clone the repository**:
+## Development Setup
 
-    ```bash
-    git clone <repository-url>
-    cd mech-alligator
-    ```
-
-2.  **Environment Variables**: Create a `.env` file in the root directory based on `.env.example` and fill in the necessary environment variables.
-
-    ```bash
-    cp .env.example .env
-    # Edit .env with your configurations
-    ```
-
-3.  **Run with Docker Compose**:
-
-    ```bash
-    docker-compose up --build
-    ```
-
-    This command will build the Docker images for both the frontend and backend, and then start all the services defined in `docker-compose.yaml`.
-
-### Accessing the Application
-
-- **Frontend**: Once the services are up, the frontend should be accessible at `http://localhost:3000` (or the port configured in your `.env` for the frontend).
-- **Backend API**: The backend API will be running on the port configured in your `.env` for the backend (e.g., `http://localhost:8080`).
-
-## Development
-
-### Frontend Development
-
-To run the frontend in development mode (without Docker Compose):
+### Frontend only
+If you want to work on just the frontend:
 
 ```bash
 cd frontend
@@ -84,21 +67,35 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The development server will start at http://localhost:3000 with hot reloading enabled.
 
-### Backend Development
-
-To run the backend in development mode (without Docker Compose):
+### Backend only
+For backend development:
 
 ```bash
 cd backend
-go run cmd/api/main.go
-# or for the worker
-go run cmd/worker/main.go
+go run cmd/api/main.go        # Start the API server
+go run cmd/worker/main.go     # Start the background worker
 ```
 
-## Images
+The API server handles web requests while the worker processes background tasks like updating product data from resellers.
 
-Branding images are located in `frontend/public/`:
-- `head-logo.png`
-- `og-image.png`
+## Project Structure
+
+```
+mech-alligator/
+├── frontend/           # Next.js app
+│   ├── public/        # Static assets (logos, images)
+│   └── ...
+├── backend/           # Go services
+│   ├── cmd/
+│   │   ├── api/       # Web API server
+│   │   └── worker/    # Background task processor
+│   └── ...
+├── docker-compose.yaml
+└── .env.example
+```
+
+## Contributing
+
+Found a bug? Have an idea for improvement? PRs are welcome. Just make sure your code doesn't break existing functionality.
