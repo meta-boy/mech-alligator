@@ -36,3 +36,19 @@ export interface ProductResponse {
   products: Product[] | null;
   pagination: PaginationData;
 }
+
+export interface FilterOptions {
+  brands: string[];
+  resellers: string[];
+  categories: string[];
+  sort_fields: string[];
+  sort_orders: string[];
+}
+
+export interface AppliedFilters {
+  brand?: string;
+  reseller?: string;
+  category?: string;
+  sort_field?: string;
+  sort_order?: string;
+}

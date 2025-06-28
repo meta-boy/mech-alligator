@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AuthManager } from "@/utils/auth";
-import { Product, ProductResponse, PaginationData } from "@/lib/types";
+import { Product, ProductResponse, PaginationData, AppliedFilters } from "@/lib/types";
 import { LoadingSkeleton } from "@/components/products/LoadingSkeleton";
 import { ErrorDisplay } from "@/components/products/ErrorDisplay";
 import { ProductFilters } from "@/components/products/ProductFilters";
@@ -17,7 +17,7 @@ export default function ProductDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [actualSearchTerm, setActualSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
+  const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [pagination, setPagination] = useState<PaginationData>({
@@ -43,9 +43,29 @@ export default function ProductDashboard() {
       try {
         const authManager = AuthManager.getInstance();
         let url = `/api/products?page=${currentPage}&page_size=${pageSize}`;
+        
+        // Add search term if present
         if (actualSearchTerm) {
           url += `&search=${encodeURIComponent(actualSearchTerm)}`;
         }
+        
+        // Add filters if present
+        if (appliedFilters.brand) {
+          url += `&brand=${encodeURIComponent(appliedFilters.brand)}`;
+        }
+        if (appliedFilters.reseller) {
+          url += `&reseller=${encodeURIComponent(appliedFilters.reseller)}`;
+        }
+        if (appliedFilters.category) {
+          url += `&category=${encodeURIComponent(appliedFilters.category)}`;
+        }
+        if (appliedFilters.sort_field) {
+          url += `&sort_field=${encodeURIComponent(appliedFilters.sort_field)}`;
+        }
+        if (appliedFilters.sort_order) {
+          url += `&sort_order=${encodeURIComponent(appliedFilters.sort_order)}`;
+        }
+        
         const response = await authManager.makeAuthenticatedRequest(url);
         
         if (!response.ok) {
@@ -68,7 +88,7 @@ export default function ProductDashboard() {
     };
 
     fetchProducts();
-  }, [currentPage, pageSize, actualSearchTerm]);
+  }, [currentPage, pageSize, actualSearchTerm, appliedFilters]);
 
 
   const handlePageChange = (newPage: number) => {
@@ -87,13 +107,14 @@ export default function ProductDashboard() {
     setIsSearching(true); // Show immediate feedback
   };
 
-  const filteredProducts = products.filter(product => {
-    const matchesTab = activeTab === "all" || 
-                      (activeTab === "published" && product.category === "KEYCAPS") ||
-                      (activeTab === "draft" && product.category === "KEYBOARDS");
-    
-    return matchesTab;
-  });
+  const handleFiltersChange = (filters: AppliedFilters) => {
+    setAppliedFilters(filters);
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  // Since we're using server-side filtering now, we don't need client-side filtering
+  // Just use the products directly from the API
+  const filteredProducts = products;
 
   if (loading) {
     return <LoadingSkeleton />;
@@ -123,8 +144,7 @@ export default function ProductDashboard() {
           searchTerm={searchTerm}
           onSearchTermChange={setSearchTerm}
           onSearch={handleSearch}
-          activeTab={activeTab}
-          onActiveTabChange={setActiveTab}
+          onFiltersChange={handleFiltersChange}
           isSearching={isSearching}
         />
 
