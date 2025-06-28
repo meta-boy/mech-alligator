@@ -134,6 +134,15 @@ func (s *JobScheduler) processNextJob(ctx context.Context, workerID int) {
 	} else {
 		log.Printf("Worker %d: Job %s completed successfully", workerID, j.ID)
 	}
+
+	pendingJobs, err := s.queue.ListJobs(ctx, job.StatusPending, 5)
+	if err == nil {
+		log.Printf("Worker %d: Found %d pending jobs in database", workerID, len(pendingJobs))
+		for _, pj := range pendingJobs {
+			log.Printf("Worker %d: Pending job %s, scheduled: %v, attempts: %d/%d",
+				workerID, pj.ID, pj.ScheduledAt, pj.Attempts, pj.MaxAttempts)
+		}
+	}
 }
 
 func (s *JobScheduler) markJobFailed(ctx context.Context, j *job.Job, jobErr error) {
@@ -146,7 +155,7 @@ func (s *JobScheduler) markJobFailed(ctx context.Context, j *job.Job, jobErr err
 		j.ScheduledAt = time.Now().Add(backoffDuration)
 		j.Status = job.StatusPending
 		j.StartedAt = nil
-		log.Printf("Job %s will be retried in %v (attempt %d/%d)", 
+		log.Printf("Job %s will be retried in %v (attempt %d/%d)",
 			j.ID, backoffDuration, j.Attempts, j.MaxAttempts)
 	} else {
 		// Max attempts reached, mark as failed
@@ -182,7 +191,7 @@ func (s *JobScheduler) cleanupWorker(ctx context.Context) {
 func (s *JobScheduler) cleanupOldJobs(ctx context.Context) {
 	// Clean up completed jobs older than 7 days
 	cutoff := time.Now().AddDate(0, 0, -7)
-	
+
 	// This would need to be implemented in the repository
 	// For now, just log the action
 	log.Printf("Cleaning up jobs older than %v", cutoff.Format("2006-01-02"))

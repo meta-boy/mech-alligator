@@ -31,16 +31,21 @@ func (r *JobRepository) Create(ctx context.Context, j *job.Job) error {
 	}
 
 	query := `
-		INSERT INTO jobs (id, type, priority, status, payload, result, error, 
-						 attempts, max_attempts, scheduled_at, started_at, 
-						 completed_at, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		INSERT INTO jobs (id, type, status, payload, result, error_message, 
+						 attempts, max_attempts, scheduled_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
+	now := time.Now()
+	if j.CreatedAt.IsZero() {
+		j.CreatedAt = now
+	}
+	j.UpdatedAt = now
+
 	_, err = r.db.ExecContext(ctx, query,
-		j.ID, j.Type, j.Priority, j.Status, payloadJSON, resultJSON,
+		j.ID, j.Type, j.Status, payloadJSON, resultJSON,
 		j.Error, j.Attempts, j.MaxAttempts, j.ScheduledAt,
-		j.StartedAt, j.CompletedAt, j.CreatedAt, j.UpdatedAt,
+		j.CreatedAt, j.UpdatedAt,
 	)
 
 	return err
@@ -57,18 +62,18 @@ func (r *JobRepository) Update(ctx context.Context, j *job.Job) error {
 		return fmt.Errorf("failed to marshal result: %w", err)
 	}
 
+	j.UpdatedAt = time.Now()
+
 	query := `
 		UPDATE jobs 
-		SET type = $2, priority = $3, status = $4, payload = $5, result = $6,
-			error = $7, attempts = $8, max_attempts = $9, scheduled_at = $10,
-			started_at = $11, completed_at = $12, updated_at = $13
+		SET type = $2, status = $3, payload = $4, result = $5,
+			error_message = $6, attempts = $7, max_attempts = $8, 
+			scheduled_at = $9, started_at = $10, completed_at = $11, updated_at = $12
 		WHERE id = $1
 	`
 
-	j.UpdatedAt = time.Now()
-
 	_, err = r.db.ExecContext(ctx, query,
-		j.ID, j.Type, j.Priority, j.Status, payloadJSON, resultJSON,
+		j.ID, j.Type, j.Status, payloadJSON, resultJSON,
 		j.Error, j.Attempts, j.MaxAttempts, j.ScheduledAt,
 		j.StartedAt, j.CompletedAt, j.UpdatedAt,
 	)
@@ -78,8 +83,8 @@ func (r *JobRepository) Update(ctx context.Context, j *job.Job) error {
 
 func (r *JobRepository) GetByID(ctx context.Context, id string) (*job.Job, error) {
 	query := `
-		SELECT id, type, priority, status, payload, result, error,
-			   attempts, max_attempts, scheduled_at, started_at,
+		SELECT id, type, status, payload, result, error_message,
+			   attempts, max_attempts, scheduled_at, started_at, 
 			   completed_at, created_at, updated_at
 		FROM jobs
 		WHERE id = $1
@@ -91,28 +96,28 @@ func (r *JobRepository) GetByID(ctx context.Context, id string) (*job.Job, error
 
 func (r *JobRepository) GetNextPending(ctx context.Context) (*job.Job, error) {
 	query := `
-		SELECT id, type, priority, status, payload, result, error,
+		SELECT id, type, status, payload, result, error_message,
 			   attempts, max_attempts, scheduled_at, started_at,
 			   completed_at, created_at, updated_at
 		FROM jobs
-		WHERE status = $1 AND scheduled_at <= $2 AND attempts < max_attempts
-		ORDER BY priority DESC, scheduled_at ASC
+		WHERE status = $1 AND scheduled_at <= CURRENT_TIMESTAMP AND attempts < max_attempts
+		ORDER BY scheduled_at ASC
 		LIMIT 1
 		FOR UPDATE SKIP LOCKED
 	`
 
-	row := r.db.QueryRowContext(ctx, query, job.StatusPending, time.Now())
+	row := r.db.QueryRowContext(ctx, query, job.StatusPending)
 	return r.scanJob(row)
 }
 
 func (r *JobRepository) ListByStatus(ctx context.Context, status job.Status, limit int) ([]*job.Job, error) {
 	query := `
-		SELECT id, type, priority, status, payload, result, error,
+		SELECT id, type, status, payload, result, error_message,
 			   attempts, max_attempts, scheduled_at, started_at,
 			   completed_at, created_at, updated_at
 		FROM jobs
 		WHERE status = $1
-		ORDER BY created_at DESC
+		ORDER BY scheduled_at DESC
 		LIMIT $2
 	`
 
@@ -145,11 +150,13 @@ func (r *JobRepository) scanJob(scanner interface {
 }) (*job.Job, error) {
 	var j job.Job
 	var payloadJSON, resultJSON []byte
+	var startedAt, completedAt sql.NullTime
+	var createdAt, updatedAt time.Time
 
 	err := scanner.Scan(
-		&j.ID, &j.Type, &j.Priority, &j.Status, &payloadJSON, &resultJSON,
+		&j.ID, &j.Type, &j.Status, &payloadJSON, &resultJSON,
 		&j.Error, &j.Attempts, &j.MaxAttempts, &j.ScheduledAt,
-		&j.StartedAt, &j.CompletedAt, &j.CreatedAt, &j.UpdatedAt,
+		&startedAt, &completedAt, &createdAt, &updatedAt,
 	)
 
 	if err != nil {
@@ -159,12 +166,112 @@ func (r *JobRepository) scanJob(scanner interface {
 		return nil, err
 	}
 
+	// Handle nullable timestamps
+	if startedAt.Valid {
+		j.StartedAt = &startedAt.Time
+	}
+	if completedAt.Valid {
+		j.CompletedAt = &completedAt.Time
+	}
+	j.CreatedAt = createdAt
+	j.UpdatedAt = updatedAt
+
 	if err := json.Unmarshal(payloadJSON, &j.Payload); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
 	if err := json.Unmarshal(resultJSON, &j.Result); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal result: %w", err)
+	}
+
+	return &j, nil
+}
+
+func (r *JobRepository) GetNextPendingAndMarkRunning(ctx context.Context) (*job.Job, error) {
+	// Use a transaction to ensure atomicity
+	tx, err := r.db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Simple query - just get pending jobs
+	query := `
+		SELECT id, type, status, payload, result, error_message,
+			   attempts, max_attempts, scheduled_at,
+			   started_at, completed_at, created_at, updated_at
+		FROM jobs
+		WHERE status = 'pending' AND attempts < max_attempts
+		ORDER BY created_at ASC
+		LIMIT 1
+		FOR UPDATE SKIP LOCKED
+	`
+
+	var j job.Job
+	var payloadJSON, resultJSON []byte
+	var startedAt, completedAt, createdAt, updatedAt sql.NullTime
+
+	err = tx.QueryRowContext(ctx, query).Scan(
+		&j.ID, &j.Type, &j.Status, &payloadJSON, &resultJSON,
+		&j.Error, &j.Attempts, &j.MaxAttempts, &j.ScheduledAt,
+		&startedAt, &completedAt, &createdAt, &updatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // No jobs available
+		}
+		return nil, fmt.Errorf("failed to query job: %w", err)
+	}
+
+	// Handle nullable timestamps properly
+	if startedAt.Valid {
+		j.StartedAt = &startedAt.Time
+	}
+	if completedAt.Valid {
+		j.CompletedAt = &completedAt.Time
+	}
+	if createdAt.Valid {
+		j.CreatedAt = createdAt.Time
+	} else {
+		j.CreatedAt = j.ScheduledAt // fallback
+	}
+	if updatedAt.Valid {
+		j.UpdatedAt = updatedAt.Time
+	} else {
+		j.UpdatedAt = j.ScheduledAt // fallback
+	}
+
+	// Unmarshal JSON fields
+	if err := json.Unmarshal(payloadJSON, &j.Payload); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
+	}
+	if err := json.Unmarshal(resultJSON, &j.Result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal result: %w", err)
+	}
+
+	// Mark as running
+	now := time.Now().UTC()
+	j.Status = job.StatusRunning
+	j.StartedAt = &now
+	j.Attempts++
+	j.UpdatedAt = now
+
+	// Update in database
+	updateQuery := `
+		UPDATE jobs 
+		SET status = 'running', started_at = $2, attempts = $3, updated_at = $4
+		WHERE id = $1
+	`
+
+	_, err = tx.ExecContext(ctx, updateQuery, j.ID, j.StartedAt, j.Attempts, j.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to mark job as running: %w", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return &j, nil

@@ -4,35 +4,41 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"log"
+	"strings"
 	"time"
 
+	"github.com/meta-boy/mech-alligator/internal/config"
 	"github.com/meta-boy/mech-alligator/internal/database"
 	"github.com/meta-boy/mech-alligator/internal/domain/job"
+	"github.com/meta-boy/mech-alligator/internal/domain/product"
+	"github.com/meta-boy/mech-alligator/internal/repository/postgres"
 	"github.com/meta-boy/mech-alligator/internal/scraper"
 )
 
 type ScrapeJobHandler struct {
-	db      *database.DB
-	manager *scraper.Manager
-	queue   job.Queue
+	db          *database.DB
+	manager     *scraper.Manager
+	productRepo *postgres.ProductRepository
 }
 
-func NewScrapeJobHandler(db *database.DB, manager *scraper.Manager, queue job.Queue) *ScrapeJobHandler {
+func NewScrapeJobHandler(db *database.DB, manager *scraper.Manager, productRepo *postgres.ProductRepository) *ScrapeJobHandler {
 	return &ScrapeJobHandler{
-		db:      db,
-		manager: manager,
-		queue:   queue,
+		db:          db,
+		manager:     manager,
+		productRepo: productRepo,
 	}
+}
+
+func (h *ScrapeJobHandler) GetType() job.JobType {
+	return job.JobTypeScrapeProducts
 }
 
 func (h *ScrapeJobHandler) Handle(ctx context.Context, j *job.Job) error {
 	log.Printf("Processing scrape job %s", j.ID)
 
 	// Parse payload
-	var payload job.ScrapeJobPayload
+	var payload config.ScrapeJobPayload
 	payloadBytes, err := json.Marshal(j.Payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal payload: %w", err)
@@ -44,45 +50,41 @@ func (h *ScrapeJobHandler) Handle(ctx context.Context, j *job.Job) error {
 
 	// Create scrape request
 	scrapeReq := &scraper.ScrapeRequest{
-		ConfigID:    payload.ConfigID,
-		VendorID:    payload.VendorID,
-		VendorName:  payload.VendorName,
-		SiteURL:     payload.SiteURL,
-		SiteType:    payload.SiteType,
-		Category:    payload.Category,
-		Credentials: payload.Credentials,
-		Options:     payload.Options,
+		URL:        payload.URL,
+		SourceType: payload.SourceType,
+		Reseller:   payload.ResellerName,
+		ResellerID: payload.ResellerID,
+		Category:   payload.Category,
+		Options:    payload.Options,
 	}
 
 	start := time.Now()
+	log.Printf("Starting scrape of %s (%s)", payload.URL, payload.SourceType)
 
 	// Perform scraping
-	var result *scraper.ScrapeResult
-	if payload.AllPages {
-		// For plugins that support multi-page scraping
-		result, err = h.manager.ScrapeByType(ctx, scrapeReq)
-	} else {
-		result, err = h.manager.ScrapeByType(ctx, scrapeReq)
-	}
-
+	result, err := h.manager.ScrapeByType(ctx, scrapeReq)
 	if err != nil {
 		return fmt.Errorf("scraping failed: %w", err)
 	}
 
-	log.Printf("Scraped %d products from %s", len(result.Products), payload.SiteURL)
+	log.Printf("Scraped %d products with %d total variants from %s",
+		len(result.Products), result.Stats.VariantsFound, payload.ResellerName)
 
-	// Save products to database
-	productsCreated, productsUpdated, imagesProcessed, errors := h.saveProductsToDB(ctx, result.Products, payload)
+	// Convert and save products
+	saveStats, saveErrors := h.saveProducts(ctx, result.Products, payload)
 
 	// Create job result
-	jobResult := job.ScrapeJobResult{
-		ProductsCreated: productsCreated,
-		ProductsUpdated: productsUpdated,
-		ImagesProcessed: imagesProcessed,
-		TotalErrors:     len(errors),
-		Errors:          errors,
+	jobResult := ScrapeJobResult{
+		ProductsCreated: saveStats.Created,
+		ProductsUpdated: saveStats.Updated,
+		VariantsTotal:   result.Stats.VariantsFound,
+		TotalErrors:     len(result.Errors) + len(saveErrors),
+		ScrapeErrors:    result.Errors,
+		SaveErrors:      saveErrors,
 		Duration:        time.Since(start).String(),
 		ScrapedAt:       start.Format(time.RFC3339),
+		Source:          payload.ResellerName,
+		Category:        payload.Category,
 	}
 
 	// Convert result to map for storage
@@ -98,182 +100,137 @@ func (h *ScrapeJobHandler) Handle(ctx context.Context, j *job.Job) error {
 
 	j.Result = resultMap
 
-	log.Printf("Job %s completed: %d created, %d updated, %d images, %d errors",
-		j.ID, productsCreated, productsUpdated, imagesProcessed, len(errors))
+	log.Printf("Job %s completed: %d created, %d updated, %d total errors",
+		j.ID, saveStats.Created, saveStats.Updated, jobResult.TotalErrors)
 
 	return nil
 }
 
-func (h *ScrapeJobHandler) GetType() job.JobType {
-	return job.JobTypeScrapeProducts
-}
-
-func (h *ScrapeJobHandler) saveProductsToDB(ctx context.Context, products []scraper.Product, payload job.ScrapeJobPayload) (int, int, int, []string) {
-	var productsCreated, productsUpdated, imagesProcessed int
+func (h *ScrapeJobHandler) saveProducts(ctx context.Context, scrapedProducts []scraper.ScrapedProduct, payload config.ScrapeJobPayload) (*SaveStats, []string) {
+	stats := &SaveStats{}
 	var errors []string
 
-	for _, product := range products {
-		productID, err := h.saveProduct(ctx, product, payload)
+	for _, sp := range scrapedProducts {
+		// Convert scraped product to domain product
+		domainProduct := h.convertToProduct(sp, payload)
+
+		// Save to database
+		err := h.productRepo.Save(ctx, domainProduct)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("Failed to save product %s: %v", product.Name, err))
+			errors = append(errors, fmt.Sprintf("Failed to save product '%s': %v", sp.Name, err))
 			continue
 		}
 
-		//err = h.enqueueTagJob(ctx, productID)
-		//if err != nil {
-		//	errors = append(errors, fmt.Sprintf("failed to enqueue tag job for product %s: %v", productID, err))
-		//}
+		// For simplicity, count all as created (repository handles update logic internally)
+		stats.Created++
 
-		// Check if product was created or updated (simplified logic)
-		// In a real implementation, you'd track this properly
-		productsCreated++
-
-		// Save product images
-		imageCount, imageErrors := h.saveProductImages(ctx, productID, product.Images)
-		imagesProcessed += imageCount
-		errors = append(errors, imageErrors...)
-
+		// Update brand if it's new (optional: maintain brand registry)
+		if sp.Brand != "" && sp.Brand != "Unknown" {
+			h.updateBrandRegistry(ctx, sp.Brand)
+		}
 	}
 
-	return productsCreated, productsUpdated, imagesProcessed, errors
+	return stats, errors
 }
 
-func (h *ScrapeJobHandler) saveProduct(ctx context.Context, product scraper.Product, payload job.ScrapeJobPayload) (string, error) {
-	// Check if product already exists
+func (h *ScrapeJobHandler) convertToProduct(sp scraper.ScrapedProduct, payload config.ScrapeJobPayload) *product.Product {
+	// Convert scraped product to domain product
+	domainProduct := &product.Product{
+		Name:           sp.Name,
+		Description:    sp.Description,
+		Handle:         sp.Handle,
+		URL:            sp.URL,
+		Brand:          sp.Brand,
+		Reseller:       payload.ResellerName,
+		ResellerID:     payload.ResellerID,
+		Category:       payload.Category,
+		Tags:           sp.Tags,
+		Images:         sp.Images,
+		SourceType:     sp.SourceType,
+		SourceID:       sp.SourceID,
+		SourceMetadata: sp.Metadata,
+	}
+
+	// Convert variants
+	for _, sv := range sp.Variants {
+		variant := product.Variant{
+			Name:      sv.Name,
+			SKU:       sv.SKU,
+			Price:     sv.Price,
+			Currency:  sv.Currency,
+			Available: sv.Available,
+			URL:       sv.URL,
+			Images:    sv.Images,
+			Options:   sv.Options,
+			SourceID:  sv.SourceID,
+		}
+		domainProduct.Variants = append(domainProduct.Variants, variant)
+	}
+
+	domainProduct.VariantCount = len(domainProduct.Variants)
+
+	return domainProduct
+}
+
+func (h *ScrapeJobHandler) updateBrandRegistry(ctx context.Context, brandName string) {
+	// Optional: Keep a registry of brands for analytics/filtering
+	// This is a simple insert-ignore operation using UUID generation
 	query := `
-		SELECT id FROM products 
-		WHERE name = $1 AND url = $2
-		LIMIT 1
+		INSERT INTO brands (id, name) 
+		VALUES (gen_random_uuid(), $1) 
+		ON CONFLICT (name) DO NOTHING
 	`
 
-	var existingID string
-	err := h.db.QueryRowContext(ctx, query, product.Name, product.URL).Scan(&existingID)
-
-	if err != nil && err.Error() != "sql: no rows in result set" {
-		return "", fmt.Errorf("failed to check existing product: %w", err)
-	}
-
-	if existingID != "" {
-		// Update existing product
-		updateQuery := `
-			UPDATE products 
-			SET description = $1, price = $2, currency = $3, in_stock = $4, updated_at = CURRENT_TIMESTAMP
-			WHERE id = $5
-		`
-		_, err = h.db.ExecContext(ctx, updateQuery,
-			product.Description, product.Price, product.Currency, product.InStock, existingID)
-		return existingID, err
-	}
-
-	// Create new product
-	insertQuery := `
-		INSERT INTO products (id, name, description, price, currency, url, config_id, in_stock, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`
-
-	id := uuid.New().String()[:10]
-	_, err = h.db.ExecContext(ctx, insertQuery,
-		id, product.Name, product.Description, product.Price,
-		product.Currency, product.URL, payload.ConfigID, product.InStock)
-
-	return id, err
-}
-
-func (h *ScrapeJobHandler) saveProductImages(ctx context.Context, productID string, images []string) (int, []string) {
-	var imageCount int
-	var errors []string
-
-	if len(images) == 0 {
-		return 0, nil
-	}
-
-	// Generate all image UUIDs for this product
-	imageUUIDs := make([]string, 0, len(images))
-	imageURLMap := make(map[string]string) // uuid -> url
-	for _, imageURL := range images {
-		if imageURL == "" {
-			continue
-		}
-		imageID := h.generateImageID(productID, imageURL)
-		imageUUIDs = append(imageUUIDs, imageID)
-		imageURLMap[imageID] = imageURL
-	}
-
-	if len(imageUUIDs) == 0 {
-		return 0, nil
-	}
-
-	// Fetch all existing image IDs in one query
-	query := `SELECT uuid, id FROM product_images WHERE uuid = ANY($1)`
-	rows, err := h.db.QueryContext(ctx, query, pq.Array(imageUUIDs))
+	_, err := h.db.ExecContext(ctx, query, brandName)
 	if err != nil {
-		errors = append(errors, fmt.Sprintf("Failed to fetch existing images: %v", err))
-		return 0, errors
+		log.Printf("Warning: Failed to update brand registry for '%s': %v", brandName, err)
 	}
-	defer rows.Close()
-
-	existingImages := make(map[string]string) // uuid -> id
-	for rows.Next() {
-		var imageUUID, id string
-		if err := rows.Scan(&imageUUID, &id); err != nil {
-			errors = append(errors, fmt.Sprintf("Failed to scan image row: %v", err))
-			continue
-		}
-		existingImages[imageUUID] = id
-	}
-
-	for _, imageUUID := range imageUUIDs {
-		imageURL := imageURLMap[imageUUID]
-		if existingID, ok := existingImages[imageUUID]; ok {
-			// Update existing image
-			updateQuery := `
-				UPDATE product_images 
-				SET product_id = $1, url = $2, updated_at = CURRENT_TIMESTAMP
-				WHERE id = $3
-			`
-			_, err = h.db.ExecContext(ctx, updateQuery, productID, imageURL, existingID)
-			if err != nil {
-				errors = append(errors, fmt.Sprintf("Failed to update image: %v", err))
-				continue
-			}
-			imageCount++
-		} else {
-			// Insert new image
-			imageID := uuid.New().String()[:10] // Generate a short ID like we do for products
-			insertQuery := `
-				INSERT INTO product_images (id, uuid, product_id, url, created_at, updated_at)
-				VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-			`
-			_, err = h.db.ExecContext(ctx, insertQuery, imageID, imageUUID, productID, imageURL)
-			if err != nil {
-				errors = append(errors, fmt.Sprintf("Failed to insert image: %v", err))
-				continue
-			}
-			imageCount++
-		}
-	}
-
-	return imageCount, errors
 }
 
-func (h *ScrapeJobHandler) enqueueTagJob(ctx context.Context, productID string) error {
-	payload := map[string]interface{}{
-		"product_id": productID,
-	}
-
-	j := &job.Job{
-		ID:          uuid.New().String(),
-		Type:        job.JobTypeTagProduct,
-		Priority:    job.PriorityNormal,
-		Payload:     payload,
-		MaxAttempts: 3,
-		ScheduledAt: time.Now(),
-	}
-
-	return h.queue.Enqueue(ctx, j)
+func (h *ScrapeJobHandler) generateBrandID(name string) string {
+	// Simple ID generation from name
+	// In production, you might want more sophisticated ID generation
+	return fmt.Sprintf("brand_%s",
+		strings.ToLower(
+			strings.ReplaceAll(
+				strings.ReplaceAll(name, " ", "_"),
+				".", "")))
 }
 
-func (h *ScrapeJobHandler) generateImageID(productID, imageURL string) string {
-	// Simple ID generation - in production, you might want to use UUID
-	return uuid.New().String()
+// Job result structure
+type ScrapeJobResult struct {
+	ProductsCreated int      `json:"products_created"`
+	ProductsUpdated int      `json:"products_updated"`
+	VariantsTotal   int      `json:"variants_total"`
+	TotalErrors     int      `json:"total_errors"`
+	ScrapeErrors    []string `json:"scrape_errors,omitempty"`
+	SaveErrors      []string `json:"save_errors,omitempty"`
+	Duration        string   `json:"duration"`
+	ScrapedAt       string   `json:"scraped_at"`
+	Source          string   `json:"source"`
+	Category        string   `json:"category"`
+}
+
+type SaveStats struct {
+	Created int
+	Updated int
+	Errors  int
+}
+
+// Helper handler for scrape all sites job
+type ScrapeAllSitesHandler struct{}
+
+func NewScrapeAllSitesHandler() *ScrapeAllSitesHandler {
+	return &ScrapeAllSitesHandler{}
+}
+
+func (h *ScrapeAllSitesHandler) GetType() job.JobType {
+	return job.JobTypeScrapeAllSites
+}
+
+func (h *ScrapeAllSitesHandler) Handle(ctx context.Context, j *job.Job) error {
+	// This job type is typically just a coordinator that creates individual scrape jobs
+	// The actual work is done by ScrapeJobHandler for each individual site
+	log.Printf("ScrapeAllSites job %s completed - individual scrape jobs were already created", j.ID)
+	return nil
 }

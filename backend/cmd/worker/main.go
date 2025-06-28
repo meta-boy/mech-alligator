@@ -57,7 +57,8 @@ func main() {
 	log.Printf("Registered scraper plugins: Shopify")
 
 	// Create job handlers
-	scrapeHandler := jobs.NewScrapeJobHandler(db, scraperManager, jobQueue)
+	productRepo := postgres.NewProductRepository(db)
+	scrapeHandler := jobs.NewScrapeJobHandler(db, scraperManager, productRepo)
 	tagHandler, err := jobs.NewTagJobHandler(db.DB)
 	if err != nil {
 		log.Fatalf("Failed to create tag job handler: %v", err)

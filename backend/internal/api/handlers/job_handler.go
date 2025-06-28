@@ -164,7 +164,6 @@ func (h *JobHandler) jobToResponse(j *job.Job) JobResponse {
 	response := JobResponse{
 		ID:          j.ID,
 		Type:        string(j.Type),
-		Priority:    int(j.Priority),
 		Status:      string(j.Status),
 		Payload:     j.Payload,
 		Result:      j.Result,

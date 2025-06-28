@@ -52,7 +52,7 @@ func main() {
 	jobQueue := queue.NewDatabaseQueue(jobRepo)
 
 	// Create services
-	jobService := service.NewJobService(db, jobQueue, nil) // scheduler not needed for API
+	jobService := service.NewJobService(db, jobQueue) // scheduler not needed for API
 	productService := service.NewProductService(productRepo)
 	userService := service.NewUserService(userRepo)
 

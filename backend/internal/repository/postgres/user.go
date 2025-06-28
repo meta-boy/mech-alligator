@@ -26,3 +26,9 @@ func (r *UserRepository) GetUserByUsername(ctx context.Context, username string)
 
 	return &u, nil
 }
+
+func (r *UserRepository) CreateUser(ctx context.Context, u *user.User) error {
+	query := `INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, created_at, updated_at`
+
+	return r.db.QueryRowContext(ctx, query, u.Username, u.PasswordHash).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
+}
