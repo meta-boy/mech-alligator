@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { API_BASE_URL, TOKEN_COOKIE_NAME } from "@/utils/constants";
 import { isTokenExpired } from "@/utils/jwt";
 
@@ -29,7 +29,7 @@ async function loginAndGetToken(): Promise<string | null> {
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const cookieStore = cookies();
   let token = cookieStore.get(TOKEN_COOKIE_NAME)?.value;
   let needsNewToken = false;

@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { 
   ExternalLink, 
@@ -46,7 +47,7 @@ interface ProductResponse {
     has_next: boolean;
     has_previous: boolean;
   };
-  filter: Record<string, any>;
+  filter: Record<string, string | number | boolean>;
   sort: {
     field: string;
     order: string;
@@ -95,16 +96,22 @@ export default function ProductDashboard() {
 
     return (
       <div className="h-48 bg-gradient-to-br from-slate-100 to-slate-200 relative overflow-hidden group">
-        <img
-          src={images[currentImageIndex]}
-          alt={`${productName} - Image ${currentImageIndex + 1}`}
-          className="w-full h-full object-cover transition-all duration-300"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.style.display = 'none';
-            target.nextElementSibling?.classList.remove('hidden');
-          }}
-        />
+        <div className="w-full h-full">
+          <Image
+        src={images[currentImageIndex]}
+        alt={`${productName} - Image ${currentImageIndex + 1}`}
+        fill
+        className="object-cover transition-all duration-300"
+        style={{ objectFit: "cover" }}
+        onError={(e) => {
+          const target = e.target as HTMLImageElement;
+          target.style.display = 'none';
+          target.nextElementSibling?.classList.remove('hidden');
+        }}
+        sizes="(max-width: 768px) 100vw, 400px"
+        priority={currentImageIndex === 0}
+          />
+        </div>
         
         {/* Fallback for broken images */}
         <div className="absolute inset-0 hidden bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
@@ -114,36 +121,36 @@ export default function ProductDashboard() {
         {/* Navigation buttons - only show if multiple images */}
         {images.length > 1 && (
           <>
+        <button
+          onClick={prevImage}
+          className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <button
+          onClick={nextImage}
+          className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+        
+        {/* Image indicators */}
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+          {images.map((_, index) => (
             <button
-              onClick={prevImage}
-              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              onClick={nextImage}
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-            
-            {/* Image indicators */}
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-              {images.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCurrentImageIndex(index);
-                  }}
-                  className={`w-2 h-2 rounded-full transition-all duration-200 ${
-                    index === currentImageIndex 
-                      ? 'bg-white' 
-                      : 'bg-white/50 hover:bg-white/70'
-                  }`}
-                />
-              ))}
-            </div>
+          key={index}
+          onClick={(e) => {
+            e.stopPropagation();
+            setCurrentImageIndex(index);
+          }}
+          className={`w-2 h-2 rounded-full transition-all duration-200 ${
+            index === currentImageIndex 
+              ? 'bg-white' 
+              : 'bg-white/50 hover:bg-white/70'
+          }`}
+            />
+          ))}
+        </div>
           </>
         )}
       </div>
@@ -409,15 +416,19 @@ export default function ProductDashboard() {
                     <div className="flex items-center gap-6 flex-1">
                       <div className="h-16 w-16 rounded-lg overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex-shrink-0">
                         {product.image_urls && product.image_urls.length > 0 ? (
-                          <img
+                          <Image
                             src={product.image_urls[0]}
                             alt={product.name}
+                            width={64}
+                            height={64}
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
                               target.style.display = 'none';
                               target.nextElementSibling?.classList.remove('hidden');
                             }}
+                            sizes="64px"
+                            priority
                           />
                         ) : null}
                         <div className={`w-full h-full flex items-center justify-center ${product.image_urls && product.image_urls.length > 0 ? 'hidden' : ''}`}>
