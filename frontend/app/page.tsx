@@ -74,19 +74,46 @@ export default function ProductDashboard() {
 
   // Component for scrollable image gallery
   const ImageGallery = ({ images, productName }: { images: string[], productName: string }) => {
+    // Generate deterministic random selection based on product name
+    const getRandomImages = (imageArray: string[], name: string, count: number = 3) => {
+      if (!imageArray || imageArray.length === 0) return [];
+      
+      // Create a simple hash from the product name for consistent randomness
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) {
+        const char = name.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32-bit integer
+      }
+      
+      // Use the hash to select images
+      const selectedImages = [];
+      const availableImages = [...imageArray];
+      const selectCount = Math.min(count, availableImages.length);
+      
+      for (let i = 0; i < selectCount; i++) {
+        const index = Math.abs(hash + i) % availableImages.length;
+        selectedImages.push(availableImages[index]);
+        availableImages.splice(index, 1);
+      }
+      
+      return selectedImages;
+    };
+
+    const selectedImages = getRandomImages(images, productName, 3);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     
     const nextImage = (e: React.MouseEvent) => {
       e.stopPropagation();
-      setCurrentImageIndex((prev) => (prev + 1) % images.length);
+      setCurrentImageIndex((prev) => (prev + 1) % selectedImages.length);
     };
     
     const prevImage = (e: React.MouseEvent) => {
       e.stopPropagation();
-      setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+      setCurrentImageIndex((prev) => (prev - 1 + selectedImages.length) % selectedImages.length);
     };
 
-    if (!images || images.length === 0) {
+    if (!selectedImages || selectedImages.length === 0) {
       return (
         <div className="h-48 bg-gradient-to-br from-slate-100 to-slate-200 relative flex items-center justify-center">
           <Package className="h-16 w-16 text-slate-400" />
@@ -98,11 +125,12 @@ export default function ProductDashboard() {
       <div className="h-48 bg-gradient-to-br from-slate-100 to-slate-200 relative overflow-hidden group">
         <div className="w-full h-full">
           <Image
-        src={images[currentImageIndex]}
+        src={selectedImages[currentImageIndex]}
         alt={`${productName} - Image ${currentImageIndex + 1}`}
         fill
         className="object-cover transition-all duration-300"
         style={{ objectFit: "cover" }}
+        quality={60}
         onError={(e) => {
           const target = e.target as HTMLImageElement;
           target.style.display = 'none';
@@ -119,7 +147,7 @@ export default function ProductDashboard() {
         </div>
 
         {/* Navigation buttons - only show if multiple images */}
-        {images.length > 1 && (
+        {selectedImages.length > 1 && (
           <>
         <button
           onClick={prevImage}
@@ -136,7 +164,7 @@ export default function ProductDashboard() {
         
         {/* Image indicators */}
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-          {images.map((_, index) => (
+          {selectedImages.map((_, index) => (
             <button
           key={index}
           onClick={(e) => {
@@ -417,11 +445,22 @@ export default function ProductDashboard() {
                       <div className="h-16 w-16 rounded-lg overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex-shrink-0">
                         {product.image_urls && product.image_urls.length > 0 ? (
                           <Image
-                            src={product.image_urls[0]}
+                            src={(() => {
+                              // Generate deterministic random selection for list view
+                              let hash = 0;
+                              for (let i = 0; i < product.name.length; i++) {
+                                const char = product.name.charCodeAt(i);
+                                hash = ((hash << 5) - hash) + char;
+                                hash = hash & hash;
+                              }
+                              const index = Math.abs(hash) % product.image_urls.length;
+                              return product.image_urls[index];
+                            })()}
                             alt={product.name}
                             width={64}
                             height={64}
                             className="w-full h-full object-cover"
+                            quality={60}
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
                               target.style.display = 'none';
