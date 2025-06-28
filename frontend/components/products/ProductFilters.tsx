@@ -1,12 +1,12 @@
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, X } from "lucide-react";
-import { useState, KeyboardEvent, useEffect, useCallback } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Search, Filter } from "lucide-react";
+import { useState, KeyboardEvent, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthManager } from "@/utils/auth";
 import { FilterOptions, AppliedFilters } from "@/lib/types";
+import { FilterPopup } from "./FilterPopup";
 
 interface ProductFiltersProps {
   onSearch: (term: string) => void;
@@ -21,6 +21,7 @@ export const ProductFilters = ({
 }: ProductFiltersProps) => {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
 
   const initialSearchTerm = searchParams.get('search') || '';
   const initialFilters: AppliedFilters = {};
@@ -34,6 +35,7 @@ export const ProductFilters = ({
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
   const [pendingFilters, setPendingFilters] = useState<AppliedFilters>(initialFilters);
   const [loadingFilters, setLoadingFilters] = useState(true);
+  const [showFilterPopup, setShowFilterPopup] = useState(false);
 
   // Fetch filter options on component mount
   useEffect(() => {
@@ -56,14 +58,22 @@ export const ProductFilters = ({
     fetchFilterOptions();
   }, []);
 
-  const createQueryString = useCallback(
-    (name: string, value: string) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set(name, value);
-      return params.toString();
-    },
-    [searchParams]
-  );
+  // Close popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterButtonRef.current && !filterButtonRef.current.contains(event.target as Node)) {
+        const filterPopup = document.querySelector('[data-filter-popup]');
+        if (filterPopup && !filterPopup.contains(event.target as Node)) {
+          setShowFilterPopup(false);
+        }
+      }
+    };
+
+    if (showFilterPopup) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showFilterPopup]);
 
   const handleInputChange = (value: string) => {
     setInputValue(value);
@@ -82,10 +92,22 @@ export const ProductFilters = ({
     router.push(`/?${params.toString()}`);
     onSearch(inputValue);
     onFiltersChange(pendingFilters);
+    setShowFilterPopup(false);
   };
 
   const handleSearch = () => {
-    applyFilters();
+    const params = new URLSearchParams();
+    if (inputValue) {
+      params.set('search', inputValue);
+    }
+    Object.entries(pendingFilters).forEach(([key, value]) => {
+      if (value !== undefined) {
+        params.set(key, value);
+      }
+    });
+    router.push(`/?${params.toString()}`);
+    onSearch(inputValue);
+    onFiltersChange(pendingFilters);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -107,171 +129,96 @@ export const ProductFilters = ({
     router.push('/');
     onSearch('');
     onFiltersChange({});
+    setShowFilterPopup(false);
   };
 
   const hasActiveFilters = Object.values(pendingFilters).some(value => value !== undefined) || inputValue !== '';
+  const activeFilterCount = Object.values(pendingFilters).filter(value => value !== undefined).length;
 
   if (loadingFilters) {
     return (
-      <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm mb-6">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-center py-8">
-            <div className="text-sm text-muted-foreground">Loading filters...</div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center py-8 mb-6">
+        <div className="text-sm text-muted-foreground">Loading filters...</div>
+      </div>
     );
   }
 
   return (
-    <Card className="border-0 shadow-sm bg-white/80 backdrop-blur-sm mb-6">
-      <CardContent className="p-6">
-        <div className="space-y-4">
-          {/* Search Bar */}
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search products..."
-                value={inputValue}
-                onChange={(e) => handleInputChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="pl-10 pr-20 border-0 bg-slate-50"
+    <div className="mb-6">
+      <div className="flex items-center gap-3 max-w-2xl">
+        {/* Search Bar */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search products..."
+            value={inputValue}
+            onChange={(e) => handleInputChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="pl-10 h-11 bg-white border-gray-200 shadow-sm"
+          />
+        </div>
+
+        {/* Search Button */}
+        <Button
+          onClick={handleSearch}
+          disabled={isSearching}
+          className="h-11 px-6"
+        >
+          {isSearching ? "..." : "Search"}
+        </Button>
+
+        {/* Filter Button */}
+        <div className="relative">
+          <Button
+            ref={filterButtonRef}
+            variant="outline"
+            onClick={() => setShowFilterPopup(!showFilterPopup)}
+            className="h-11 px-4 border-gray-200 bg-white hover:bg-gray-50"
+          >
+            <Filter className="h-4 w-4 mr-2" />
+            Filters
+            {activeFilterCount > 0 && (
+              <Badge variant="secondary" className="ml-2 h-5 w-5 p-0 text-xs">
+                {activeFilterCount}
+              </Badge>
+            )}
+          </Button>
+
+          {/* Filter Popup */}
+          {showFilterPopup && filterOptions && (
+            <div data-filter-popup>
+              <FilterPopup
+                filterOptions={filterOptions}
+                pendingFilters={pendingFilters}
+                onFilterChange={handleFilterChange}
+                onApplyFilters={applyFilters}
+                onClearFilters={clearFilters}
+                onClose={() => setShowFilterPopup(false)}
+                hasActiveFilters={hasActiveFilters}
               />
-              <Button
-                onClick={handleSearch}
-                size="sm"
-                disabled={isSearching}
-                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 px-3"
-              >
-                {isSearching ? "..." : "Search"}
-              </Button>
-            </div>
-          </div>
-
-          {/* Filter Dropdowns */}
-          {filterOptions && (
-            <div className="flex flex-wrap gap-4 items-center">
-              {/* Brand Filter */}
-              <div className="min-w-[160px]">
-                <Select
-                  value={pendingFilters.brand || 'all'}
-                  onValueChange={(value) => handleFilterChange('brand', value)}
-                >
-                  <SelectTrigger className="bg-slate-50 border-0">
-                    <SelectValue placeholder="All Brands" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Brands</SelectItem>
-                    {filterOptions.brands.map((brand) => (
-                      <SelectItem key={brand} value={brand}>
-                        {brand}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Reseller Filter */}
-              <div className="min-w-[160px]">
-                <Select
-                  value={pendingFilters.reseller || 'all'}
-                  onValueChange={(value) => handleFilterChange('reseller', value)}
-                >
-                  <SelectTrigger className="bg-slate-50 border-0">
-                    <SelectValue placeholder="All Resellers" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Resellers</SelectItem>
-                    {filterOptions.resellers.map((reseller) => (
-                      <SelectItem key={reseller} value={reseller}>
-                        {reseller}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Category Filter */}
-              <div className="min-w-[160px]">
-                <Select
-                  value={pendingFilters.category || 'all'}
-                  onValueChange={(value) => handleFilterChange('category', value)}
-                >
-                  <SelectTrigger className="bg-slate-50 border-0">
-                    <SelectValue placeholder="All Categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {filterOptions.categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Sort Field Filter */}
-              <div className="min-w-[160px]">
-                <Select
-                  value={pendingFilters.sort_field || 'name'}
-                  onValueChange={(value) => handleFilterChange('sort_field', value)}
-                >
-                  <SelectTrigger className="bg-slate-50 border-0">
-                    <SelectValue placeholder="Sort By" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filterOptions.sort_fields.map((field) => (
-                      <SelectItem key={field} value={field}>
-                        {field.charAt(0).toUpperCase() + field.slice(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Sort Order Filter */}
-              <div className="min-w-[120px]">
-                <Select
-                  value={pendingFilters.sort_order || 'asc'}
-                  onValueChange={(value) => handleFilterChange('sort_order', value)}
-                >
-                  <SelectTrigger className="bg-slate-50 border-0">
-                    <SelectValue placeholder="Order" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="asc">Ascending</SelectItem>
-                    <SelectItem value="desc">Descending</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Apply Filters Button */}
-              <Button
-                onClick={applyFilters}
-                size="sm"
-                className="h-10 px-3"
-              >
-                Apply Filters
-              </Button>
-
-              {/* Clear Filters Button */}
-              {hasActiveFilters && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearFilters}
-                  className="h-10 px-3"
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Clear Filters
-                </Button>
-              )}
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Active Filters Display */}
+      {hasActiveFilters && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {inputValue && (
+            <Badge variant="outline" className="text-xs bg-blue-50 border-blue-200">
+              Search: `{inputValue}`
+            </Badge>
+          )}
+          {Object.entries(pendingFilters).map(([key, value]) => {
+            if (!value) return null;
+            return (
+              <Badge key={key} variant="outline" className="text-xs bg-gray-50 border-gray-200">
+                {key.replace('_', ' ')}: {value}
+              </Badge>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 };

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import { isTokenExpired } from '@/utils/jwt';
 
 export async function GET(request: NextRequest) {

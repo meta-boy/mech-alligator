@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { AuthManager } from "@/utils/auth";
 import { Product, ProductResponse, PaginationData, AppliedFilters } from "@/lib/types";
@@ -11,7 +12,7 @@ import { ProductGrid } from "@/components/products/ProductGrid";
 import { EmptyState } from "@/components/products/EmptyState";
 import { Pagination } from "@/components/products/Pagination";
 
-export default function ProductDashboard() {
+function ProductDashboardContent() {
   const searchParams = useSearchParams();
 
   const initialSearchTerm = searchParams.get('search') || '';
@@ -28,7 +29,6 @@ export default function ProductDashboard() {
   const [loading, setLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [actualSearchTerm, setActualSearchTerm] = useState(initialSearchTerm);
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>(initialFilters);
   const [currentPage, setCurrentPage] = useState(initialPage);
@@ -113,49 +113,104 @@ export default function ProductDashboard() {
 
   if (loading) {
     return <LoadingSkeleton />;
+
   }
 
   if (error) {
     return <ErrorDisplay error={error} />;
+
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+
       <div className="max-w-7xl mx-auto p-6">
+
         <div className="mb-8">
+
           <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-                Products
-              </h1>
-              <p className="text-muted-foreground mt-1">
-                Discover premium keyboards and keycaps from top resellers
-              </p>
+
+            <div className="flex items-center gap-4">
+
+              <Image 
+
+                src="/head-logo.png" 
+
+                alt="Mech Alligator Logo" 
+
+                className="w-16 h-16 object-contain"
+
+              />
+
+              <div>
+
+                <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
+
+                  Mech Alligator
+
+                </h1>
+
+                <p className="text-muted-foreground mt-1">
+
+                  Discover premium keyboards and keycaps from top resellers
+
+                </p>
+
+              </div>
+
             </div>
+
           </div>
+
         </div>
 
         <ProductFilters
+
           onSearch={handleSearch}
+
           onFiltersChange={handleFiltersChange}
+
           isSearching={isSearching}
+
         />
 
         {filteredProducts.length > 0 ? (
+
           <ProductGrid products={filteredProducts} />
+
         ) : (
+
           <EmptyState searchTerm={actualSearchTerm} />
+
         )}
 
         {!loading && products.length > 0 && (
+
           <Pagination
+
             pagination={pagination}
+
             pageSize={pageSize}
+
             onPageChange={handlePageChange}
+
             onPageSizeChange={handlePageSizeChange}
+
           />
+
         )}
+
       </div>
+
     </div>
+
+  );
+}
+
+export default function ProductDashboard() {
+  return (
+    <Suspense fallback={<LoadingSkeleton />}>
+      <ProductDashboardContent />
+    </Suspense>
   );
 }

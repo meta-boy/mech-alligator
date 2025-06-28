@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Package } from "lucide-react";
 import { Product } from "@/lib/types";
 import { useRouter } from 'next/navigation';
+import Image from "next/image";
 
 interface ProductCardProps {
   product: Product;
@@ -24,7 +25,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     >
       <div className="relative">
         <div className="aspect-square overflow-hidden">
-          <img 
+          <Image 
             src={product.images[0] || '/placeholder.jpg'} 
             alt={product.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
