@@ -33,6 +33,6 @@ export interface PaginationData {
 }
 
 export interface ProductResponse {
-  products: Product[];
+  products: Product[] | null;
   pagination: PaginationData;
 }

@@ -53,7 +53,7 @@ export default function ProductDashboard() {
         }
         
         const data: ProductResponse = await response.json();
-        setProducts(data.products);
+        setProducts(data.products || []); // Handle null products by defaulting to empty array
         setPagination(data.pagination);
       } catch (err) {
         if (err instanceof Error) {
