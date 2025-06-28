@@ -30,19 +30,6 @@ export default function ProductInfoSection({
         {product.name}
       </h1>
       
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex items-center">
-          {[...Array(5)].map((_, i) => (
-            <Star
-              key={i}
-              className={`w-4 h-4 ${
-                i < 4 ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
-              }`}
-            />
-          ))}
-        </div>
-        <span className="text-sm text-gray-600">4.2 (127 reviews)</span>
-      </div>
 
       <div className="prose prose-sm max-w-none">
         <p className="text-gray-700 leading-relaxed">
