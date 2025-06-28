@@ -1,4 +1,3 @@
-import { Star } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 interface ProductInfoSectionProps {
