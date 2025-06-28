@@ -133,7 +133,8 @@ function ProductDashboardContent() {
             <div className="flex items-center gap-4">
 
               <Image 
-
+                width={64}
+                height={64}
                 src="/head-logo.png" 
 
                 alt="Mech Alligator Logo" 

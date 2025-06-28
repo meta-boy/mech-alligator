@@ -61,12 +61,23 @@ export const ProductFilters = ({
   // Close popup when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (filterButtonRef.current && !filterButtonRef.current.contains(event.target as Node)) {
-        const filterPopup = document.querySelector('[data-filter-popup]');
-        if (filterPopup && !filterPopup.contains(event.target as Node)) {
-          setShowFilterPopup(false);
+      // Add a small delay to allow Select component events to process first
+      setTimeout(() => {
+        if (filterButtonRef.current && !filterButtonRef.current.contains(event.target as Node)) {
+          const filterPopup = document.querySelector('[data-filter-popup]');
+          // Check if click is inside the filter popup
+          const isInsidePopup = filterPopup && filterPopup.contains(event.target as Node);
+          
+          // Check if click is inside a Select dropdown (which renders in a portal)
+          const selectContent = (event.target as Element).closest('[data-radix-select-content]');
+          const selectTrigger = (event.target as Element).closest('[data-radix-select-trigger]');
+          const isInsideSelect = selectContent !== null || selectTrigger !== null;
+          
+          if (!isInsidePopup && !isInsideSelect) {
+            setShowFilterPopup(false);
+          }
         }
-      }
+      }, 10);
     };
 
     if (showFilterPopup) {

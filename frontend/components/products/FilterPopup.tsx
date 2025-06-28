@@ -27,7 +27,10 @@ export const FilterPopup = ({
   const activeFilterCount = Object.values(pendingFilters).filter(value => value !== undefined).length;
 
   return (
-    <div className="absolute top-full right-0 mt-2 z-50 w-80 max-w-sm">
+    <div 
+      className="absolute top-full right-0 mt-2 z-50 w-80 max-w-sm"
+      onClick={(e) => e.stopPropagation()}
+    >
       <Card className="border shadow-lg bg-white">
         <CardContent className="p-6">
           <div className="space-y-4">

@@ -28,6 +28,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           <Image 
             src={product.images[0] || '/placeholder.jpg'} 
             alt={product.name}
+            fill={true}
+            objectFit="cover"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         </div>
