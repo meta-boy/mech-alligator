@@ -36,6 +36,7 @@ export const ProductFilters = ({
   const [pendingFilters, setPendingFilters] = useState<AppliedFilters>(initialFilters);
   const [loadingFilters, setLoadingFilters] = useState(true);
   const [showFilterPopup, setShowFilterPopup] = useState(false);
+  const [selectOpen, setSelectOpen] = useState(false);
 
   // Fetch filter options on component mount
   useEffect(() => {
@@ -61,30 +62,33 @@ export const ProductFilters = ({
   // Close popup when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Add a small delay to allow Select component events to process first
-      setTimeout(() => {
-        if (filterButtonRef.current && !filterButtonRef.current.contains(event.target as Node)) {
-          const filterPopup = document.querySelector('[data-filter-popup]');
-          // Check if click is inside the filter popup
-          const isInsidePopup = filterPopup && filterPopup.contains(event.target as Node);
-          
-          // Check if click is inside a Select dropdown (which renders in a portal)
-          const selectContent = (event.target as Element).closest('[data-radix-select-content]');
-          const selectTrigger = (event.target as Element).closest('[data-radix-select-trigger]');
-          const isInsideSelect = selectContent !== null || selectTrigger !== null;
-          
-          if (!isInsidePopup && !isInsideSelect) {
-            setShowFilterPopup(false);
-          }
+      const target = event.target as Element;
+      
+      if (filterButtonRef.current && !filterButtonRef.current.contains(target as Node)) {
+        const filterPopup = document.querySelector('[data-filter-popup]');
+        // Check if click is inside the filter popup
+        const isInsidePopup = filterPopup && filterPopup.contains(target as Node);
+        
+        // More comprehensive check for Radix Select elements
+        const isSelectElement = target.closest('[data-radix-select-content]') || 
+                              target.closest('[data-radix-select-trigger]') ||
+                              target.closest('[data-radix-select-item]') ||
+                              target.closest('[data-radix-select-viewport]') ||
+                              target.closest('[role="combobox"]') ||
+                              target.closest('[role="option"]') ||
+                              target.closest('[role="listbox"]');
+        
+        if (!isInsidePopup && !isSelectElement && !selectOpen) {
+          setShowFilterPopup(false);
         }
-      }, 10);
+      }
     };
 
-    if (showFilterPopup) {
+    if (showFilterPopup && !selectOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [showFilterPopup]);
+  }, [showFilterPopup, selectOpen]);
 
   const handleInputChange = (value: string) => {
     setInputValue(value);
@@ -206,6 +210,7 @@ export const ProductFilters = ({
                 onClearFilters={clearFilters}
                 onClose={() => setShowFilterPopup(false)}
                 hasActiveFilters={hasActiveFilters}
+                onSelectOpenChange={setSelectOpen}
               />
             </div>
           )}

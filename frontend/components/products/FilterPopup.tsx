@@ -13,6 +13,7 @@ interface FilterPopupProps {
   onClearFilters: () => void;
   onClose: () => void;
   hasActiveFilters: boolean;
+  onSelectOpenChange?: (open: boolean) => void;
 }
 
 export const FilterPopup = ({
@@ -22,7 +23,8 @@ export const FilterPopup = ({
   onApplyFilters,
   onClearFilters,
   onClose,
-  hasActiveFilters
+  hasActiveFilters,
+  onSelectOpenChange
 }: FilterPopupProps) => {
   const activeFilterCount = Object.values(pendingFilters).filter(value => value !== undefined).length;
 
@@ -89,6 +91,7 @@ export const FilterPopup = ({
                 <Select
                   value={pendingFilters.brand || 'all'}
                   onValueChange={(value) => onFilterChange('brand', value)}
+                  onOpenChange={onSelectOpenChange}
                 >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue placeholder="All Brands" />
@@ -112,6 +115,7 @@ export const FilterPopup = ({
                 <Select
                   value={pendingFilters.reseller || 'all'}
                   onValueChange={(value) => onFilterChange('reseller', value)}
+                  onOpenChange={onSelectOpenChange}
                 >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue placeholder="All Resellers" />
@@ -135,6 +139,7 @@ export const FilterPopup = ({
                 <Select
                   value={pendingFilters.category || 'all'}
                   onValueChange={(value) => onFilterChange('category', value)}
+                  onOpenChange={onSelectOpenChange}
                 >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue placeholder="All Categories" />
@@ -162,6 +167,7 @@ export const FilterPopup = ({
                     <Select
                       value={pendingFilters.sort_field || 'name'}
                       onValueChange={(value) => onFilterChange('sort_field', value)}
+                      onOpenChange={onSelectOpenChange}
                     >
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue />
@@ -181,6 +187,7 @@ export const FilterPopup = ({
                     <Select
                       value={pendingFilters.sort_order || 'asc'}
                       onValueChange={(value) => onFilterChange('sort_order', value)}
+                      onOpenChange={onSelectOpenChange}
                     >
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue />
