@@ -13,11 +13,15 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const page = searchParams.get('page') || '1';
     const pageSize = searchParams.get('page_size') || '20';
+    const search = searchParams.get('search') || '';
     
-    // Build the API URL with pagination parameters
+    // Build the API URL with pagination and search parameters
     const apiUrl = new URL(`${API_BASE_URL}/products`);
     apiUrl.searchParams.set('page', page);
     apiUrl.searchParams.set('page_size', pageSize);
+    if (search) {
+      apiUrl.searchParams.set('search', search);
+    }
 
     const response = await fetch(apiUrl.toString(), {
       headers: {

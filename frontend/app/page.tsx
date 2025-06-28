@@ -13,8 +13,10 @@ import { Pagination } from "@/components/products/Pagination";
 export default function ProductDashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [actualSearchTerm, setActualSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -27,12 +29,23 @@ export default function ProductDashboard() {
     has_prev: false,
   });
 
+  // Debounce search term for auto-search
+
   useEffect(() => {
     const fetchProducts = async () => {
-      setLoading(true);
+      // Set appropriate loading state
+      if (currentPage === 1) {
+        setLoading(true);
+      } else {
+        setIsSearching(true);
+      }
+      
       try {
         const authManager = AuthManager.getInstance();
-        const url = `/api/products?page=${currentPage}&page_size=${pageSize}`;
+        let url = `/api/products?page=${currentPage}&page_size=${pageSize}`;
+        if (actualSearchTerm) {
+          url += `&search=${encodeURIComponent(actualSearchTerm)}`;
+        }
         const response = await authManager.makeAuthenticatedRequest(url);
         
         if (!response.ok) {
@@ -50,11 +63,13 @@ export default function ProductDashboard() {
         }
       } finally {
         setLoading(false);
+        setIsSearching(false);
       }
     };
 
     fetchProducts();
-  }, [currentPage, pageSize]);
+  }, [currentPage, pageSize, actualSearchTerm]);
+
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
@@ -66,16 +81,18 @@ export default function ProductDashboard() {
     setPageSize(newPageSize);
   };
 
+  const handleSearch = (term: string) => {
+    setActualSearchTerm(term);
+    setCurrentPage(1); // Reset to first page when searching
+    setIsSearching(true); // Show immediate feedback
+  };
+
   const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.reseller.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.brand.toLowerCase().includes(searchTerm.toLowerCase());
-    
     const matchesTab = activeTab === "all" || 
                       (activeTab === "published" && product.category === "KEYCAPS") ||
                       (activeTab === "draft" && product.category === "KEYBOARDS");
     
-    return matchesSearch && matchesTab;
+    return matchesTab;
   });
 
   if (loading) {
@@ -105,14 +122,16 @@ export default function ProductDashboard() {
         <ProductFilters 
           searchTerm={searchTerm}
           onSearchTermChange={setSearchTerm}
+          onSearch={handleSearch}
           activeTab={activeTab}
           onActiveTabChange={setActiveTab}
+          isSearching={isSearching}
         />
 
         {filteredProducts.length > 0 ? (
           <ProductGrid products={filteredProducts} />
         ) : (
-          <EmptyState searchTerm={searchTerm} />
+          <EmptyState searchTerm={actualSearchTerm} />
         )}
 
         {!loading && products.length > 0 && (
