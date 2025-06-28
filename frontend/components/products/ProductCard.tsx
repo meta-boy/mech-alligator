@@ -23,17 +23,16 @@ export const ProductCard = ({ product }: ProductCardProps) => (
           onClick={() => window.open(product.url, '_blank')}
           className="h-6 px-2 text-xs"
         >
-          <ExternalLink className="h-3 w-3 mr-1" />
-          View
+          <ExternalLink className="h-3 w-3" />
         </Button>
       </div>
-      <div className="absolute bottom-4 left-4 right-4">
-        <div className="flex items-center gap-2 text-sm text-white drop-shadow-lg bg-black/30 p-2 rounded-md backdrop-blur-sm">
-          <Package className="h-4 w-4" />
-          <span className="capitalize font-medium">{product.reseller}</span>
+        <div className="absolute bottom-4 left-4">
+          <div className="flex items-center gap-2 text-sm text-white drop-shadow-lg bg-black/30 px-2 py-1 rounded-md backdrop-blur-sm w-fit">
+            <Package className="h-4 w-4" />
+            <span className="capitalize font-medium">{product.reseller}</span>
+          </div>
         </div>
-      </div>
-    </div>
+       </div>
     
     <CardContent className="p-6">
       <CardTitle className="text-lg leading-tight line-clamp-2 group-hover:text-blue-600 transition-colors mb-2">
