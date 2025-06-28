@@ -26,6 +26,8 @@ export async function GET(req: NextRequest) {
     });
 
     if (!response.ok) {
+      console.log(response.url);
+      console.error('Failed to fetch products:', response.status, response.statusText);
       return NextResponse.json({ message: 'Failed to fetch products' }, { status: response.status });
     }
 

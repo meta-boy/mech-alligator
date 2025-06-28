@@ -25,16 +25,25 @@ interface Product {
   id: string;
   name: string;
   description: string;
-  price: number;
-  currency: string;
+  handle: string;
   url: string;
-  config_id: string;
-  in_stock: boolean;
-  created_at: string;
-  updated_at: string;
-  vendor: string;
+  brand: string;
+  reseller: string;
+  category: string;
   tags: string[];
-  image_urls: string[];
+  images: string[];
+  variant_count: number;
+  source_type: string;
+  source_id: string;
+  reseller_id: string;
+  source_metadata: {
+    created_at: string;
+    published_at: string;
+    shopify_handle: string;
+    shopify_product_type: string;
+    shopify_vendor: string;
+    updated_at: string;
+  };
 }
 
 interface ProductResponse {
@@ -42,15 +51,10 @@ interface ProductResponse {
   pagination: {
     page: number;
     page_size: number;
-    total_items: number;
+    total: number;
     total_pages: number;
     has_next: boolean;
-    has_previous: boolean;
-  };
-  filter: Record<string, string | number | boolean>;
-  sort: {
-    field: string;
-    order: string;
+    has_prev: boolean;
   };
 }
 
@@ -66,13 +70,12 @@ export default function ProductDashboard() {
   const [pagination, setPagination] = useState({
     page: 1,
     page_size: 20,
-    total_items: 0,
+    total: 0,
     total_pages: 0,
     has_next: false,
-    has_previous: false,
+    has_prev: false,
   });
 
-  // Component for scrollable image gallery
   const ImageGallery = ({ images, productName }: { images: string[], productName: string }) => {
     // Generate deterministic random selection based on product name
     const getRandomImages = (imageArray: string[], name: string, count: number = 3) => {
@@ -214,13 +217,6 @@ export default function ProductDashboard() {
     fetchProducts();
   }, [currentPage, pageSize]);
 
-  const formatPrice = (price: number, currency: string) => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: currency,
-    }).format(price / 100);
-  };
-
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -233,11 +229,12 @@ export default function ProductDashboard() {
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.vendor.toLowerCase().includes(searchTerm.toLowerCase());
+                         product.reseller.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.brand.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesTab = activeTab === "all" || 
-                      (activeTab === "published" && product.in_stock) ||
-                      (activeTab === "draft" && !product.in_stock);
+                      (activeTab === "published" && product.category === "KEYCAPS") ||
+                      (activeTab === "draft" && product.category === "KEYBOARDS");
     
     return matchesSearch && matchesTab;
   });
@@ -318,7 +315,7 @@ export default function ProductDashboard() {
                 Products
               </h1>
               <p className="text-muted-foreground mt-1">
-                Discover premium keyboards from top vendors
+                Discover premium keyboards and keycaps from top resellers
               </p>
             </div>
           </div>
@@ -343,9 +340,9 @@ export default function ProductDashboard() {
               <div className="flex items-center gap-2">
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
                   <TabsList className="bg-slate-100">
-                    <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
-                    <TabsTrigger value="published" className="text-xs">Available</TabsTrigger>
-                    <TabsTrigger value="draft" className="text-xs">Out of Stock</TabsTrigger>
+                    <TabsTrigger value="all" className="text-xs">All Products</TabsTrigger>
+                    <TabsTrigger value="published" className="text-xs">Keycaps</TabsTrigger>
+                    <TabsTrigger value="draft" className="text-xs">Keyboards</TabsTrigger>
                   </TabsList>
                 </Tabs>
 
@@ -378,19 +375,24 @@ export default function ProductDashboard() {
             {filteredProducts.map((product) => (
               <Card key={product.id} className="group hover:shadow-lg transition-all duration-300 hover:-translate-y-1 border-0 shadow-sm bg-white/80 backdrop-blur-sm overflow-hidden">
                 <div className="relative">
-                  <ImageGallery images={product.image_urls} productName={product.name} />
-                  <div className="absolute top-4 right-4">
-                    <Badge 
-                      variant={product.in_stock ? "default" : "secondary"} 
-                      className={product.in_stock ? "bg-green-500" : ""}
-                    >
-                      {product.in_stock ? "Available" : "Out of Stock"}
+                  <ImageGallery images={product.images} productName={product.name} />
+                  <div className="absolute top-4 right-4 flex gap-2">
+                    <Badge variant="outline" className="bg-white/90">
+                      {product.brand}
                     </Badge>
+                    <Button 
+                      size="sm"
+                      onClick={() => window.open(product.url, '_blank')}
+                      className="h-6 px-2 text-xs"
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      View
+                    </Button>
                   </div>
                   <div className="absolute bottom-4 left-4 right-4">
                     <div className="flex items-center gap-2 text-sm text-white drop-shadow-lg">
                       <Package className="h-4 w-4" />
-                      <span className="capitalize font-medium">{product.vendor}</span>
+                      <span className="capitalize font-medium">{product.reseller}</span>
                     </div>
                   </div>
                 </div>
@@ -400,14 +402,17 @@ export default function ProductDashboard() {
                     {product.name}
                   </CardTitle>
                   
-                  <div className="flex items-baseline gap-4 mb-4">
-                    <div className="text-xl font-bold text-slate-900">
-                      {formatPrice(product.price, product.currency)}
-                    </div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Badge variant="secondary" className="text-xs">
+                      {product.category}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      {product.variant_count} variant{product.variant_count !== 1 ? 's' : ''}
+                    </Badge>
                   </div>
                   
                   {product.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-4">
+                    <div className="flex flex-wrap gap-1">
                       {product.tags.slice(0, 2).map((tag) => (
                         <Badge key={tag} variant="outline" className="text-xs border-slate-200">
                           {tag}
@@ -420,16 +425,6 @@ export default function ProductDashboard() {
                       )}
                     </div>
                   )}
-                  
-                  <Button 
-                    className="w-full group-hover:shadow-md transition-all duration-300" 
-                    onClick={() => window.open(product.url, '_blank')}
-                    disabled={!product.in_stock}
-                    variant={product.in_stock ? "default" : "secondary"}
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    {product.in_stock ? "View Product" : "Out of Stock"}
-                  </Button>
                 </CardContent>
               </Card>
             ))}
@@ -443,7 +438,7 @@ export default function ProductDashboard() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-6 flex-1">
                       <div className="h-16 w-16 rounded-lg overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex-shrink-0">
-                        {product.image_urls && product.image_urls.length > 0 ? (
+                        {product.images && product.images.length > 0 ? (
                           <Image
                             src={(() => {
                               // Generate deterministic random selection for list view
@@ -453,8 +448,8 @@ export default function ProductDashboard() {
                                 hash = ((hash << 5) - hash) + char;
                                 hash = hash & hash;
                               }
-                              const index = Math.abs(hash) % product.image_urls.length;
-                              return product.image_urls[index];
+                              const index = Math.abs(hash) % product.images.length;
+                              return product.images[index];
                             })()}
                             alt={product.name}
                             width={64}
@@ -470,7 +465,7 @@ export default function ProductDashboard() {
                             priority
                           />
                         ) : null}
-                        <div className={`w-full h-full flex items-center justify-center ${product.image_urls && product.image_urls.length > 0 ? 'hidden' : ''}`}>
+                        <div className={`w-full h-full flex items-center justify-center ${product.images && product.images.length > 0 ? 'hidden' : ''}`}>
                           <Package className="h-8 w-8 text-slate-500" />
                         </div>
                       </div>
@@ -478,29 +473,35 @@ export default function ProductDashboard() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-1">
                           <h3 className="font-semibold text-lg">{product.name}</h3>
-                          <Badge 
-                            variant={product.in_stock ? "default" : "secondary"}
-                            className={product.in_stock ? "bg-green-500" : ""}
-                          >
-                            {product.in_stock ? "Available" : "Out of Stock"}
+                          <Badge variant="outline">
+                            {product.brand}
                           </Badge>
                         </div>
                         
                         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
-                          <span className="capitalize">{product.vendor}</span>
+                          <span className="capitalize">{product.reseller}</span>
                           <span>•</span>
-                          <span>{product.tags.join(", ")}</span>
+                          <span>{product.category}</span>
+                          <span>•</span>
+                          <span>{product.variant_count} variant{product.variant_count !== 1 ? 's' : ''}</span>
                         </div>
                         
-                        <div className="text-xl font-bold text-slate-900">
-                          {formatPrice(product.price, product.currency)}
+                        <div className="flex flex-wrap gap-1">
+                          {product.tags.slice(0, 3).map((tag) => (
+                            <Badge key={tag} variant="outline" className="text-xs">
+                              {tag}
+                            </Badge>
+                          ))}
+                          {product.tags.length > 3 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{product.tags.length - 3}
+                            </Badge>
+                          )}
                         </div>
                       </div>
                       
                       <Button 
                         onClick={() => window.open(product.url, '_blank')}
-                        disabled={!product.in_stock}
-                        variant={product.in_stock ? "default" : "secondary"}
                       >
                         <ExternalLink className="h-4 w-4 mr-2" />
                         View Product
@@ -521,8 +522,8 @@ export default function ProductDashboard() {
                 {/* Page info */}
                 <div className="text-sm text-muted-foreground">
                   Showing {((pagination.page - 1) * pageSize) + 1} to{' '}
-                  {Math.min(pagination.page * pageSize, pagination.total_items)} of{' '}
-                  {pagination.total_items} products
+                  {Math.min(pagination.page * pageSize, pagination.total)} of{' '}
+                  {pagination.total} products
                 </div>
 
                 {/* Pagination controls */}
@@ -548,7 +549,7 @@ export default function ProductDashboard() {
                       variant="outline"
                       size="sm"
                       onClick={() => handlePageChange(1)}
-                      disabled={!pagination.has_previous}
+                      disabled={!pagination.has_prev}
                     >
                       <ChevronsLeft className="h-4 w-4" />
                     </Button>
@@ -556,7 +557,7 @@ export default function ProductDashboard() {
                       variant="outline"
                       size="sm"
                       onClick={() => handlePageChange(pagination.page - 1)}
-                      disabled={!pagination.has_previous}
+                      disabled={!pagination.has_prev}
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
