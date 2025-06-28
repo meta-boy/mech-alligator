@@ -154,7 +154,7 @@ function ProductDashboardContent() {
 
                 <p className="text-muted-foreground mt-1">
 
-                  Discover premium keyboards and keycaps from top resellers
+                  Discover premium keyboards and keycaps from top resellers in India
 
                 </p>
 
