@@ -20,7 +20,7 @@ export const Pagination = ({ pagination, pageSize, onPageChange, onPageSizeChang
           {pagination.total} products
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2">
           <div className="flex items-center gap-2 mr-4">
             <span className="text-sm text-muted-foreground">Show:</span>
             <select
@@ -53,17 +53,17 @@ export const Pagination = ({ pagination, pageSize, onPageChange, onPageSizeChang
               <ChevronLeft className="h-4 w-4" />
             </Button>
             
-            <div className="flex items-center gap-1 mx-2">
-              {Array.from({ length: Math.min(5, pagination.total_pages) }, (_, i) => {
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(3, pagination.total_pages) }, (_, i) => {
                 let pageNumber;
-                if (pagination.total_pages <= 5) {
+                if (pagination.total_pages <= 3) {
                   pageNumber = i + 1;
-                } else if (pagination.page <= 3) {
+                } else if (pagination.page <= 2) {
                   pageNumber = i + 1;
-                } else if (pagination.page >= pagination.total_pages - 2) {
-                  pageNumber = pagination.total_pages - 4 + i;
+                } else if (pagination.page >= pagination.total_pages - 1) {
+                  pageNumber = pagination.total_pages - 2 + i;
                 } else {
-                  pageNumber = pagination.page - 2 + i;
+                  pageNumber = pagination.page - 1 + i;
                 }
 
                 return (

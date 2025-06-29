@@ -123,13 +123,13 @@ function ProductDashboardContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 overflow-x-hidden">
 
       <div className="max-w-7xl mx-auto p-6">
 
         <div className="mb-8">
 
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4 sm:gap-0">
 
             <div className="flex items-center gap-4">
 
@@ -162,7 +162,7 @@ function ProductDashboardContent() {
 
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap justify-center sm:justify-end items-center gap-2">
 
               <a 
                 href="https://discord.gg/9Fyd9pYFeX"
