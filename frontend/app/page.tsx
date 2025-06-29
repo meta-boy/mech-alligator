@@ -13,6 +13,7 @@ import { ProductGrid } from "@/components/products/ProductGrid";
 import { EmptyState } from "@/components/products/EmptyState";
 import { Pagination } from "@/components/products/Pagination";
 import Link from "next/link";
+import { ThemeToggleButton } from "@/components/ui/ThemeToggleButton";
 
 function ProductDashboardContent() {
   const searchParams = useSearchParams();
@@ -191,6 +192,8 @@ function ProductDashboardContent() {
                 <span>GitHub</span>
                 <Star size={12} fill="currentColor" className="text-yellow-400" />
               </a>
+
+              <ThemeToggleButton />
 
             </div>
 
