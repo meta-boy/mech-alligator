@@ -12,6 +12,7 @@ import { ProductFilters } from "@/components/products/ProductFilters";
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { EmptyState } from "@/components/products/EmptyState";
 import { Pagination } from "@/components/products/Pagination";
+import Link from "next/link";
 
 function ProductDashboardContent() {
   const searchParams = useSearchParams();
@@ -131,6 +132,7 @@ function ProductDashboardContent() {
 
           <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4 sm:gap-0">
 
+            <Link href={"/"} className="flex items-center gap-4">
             <div className="flex items-center gap-4">
 
               <Image 
@@ -161,6 +163,7 @@ function ProductDashboardContent() {
               </div>
 
             </div>
+            </Link>
 
             <div className="flex flex-wrap justify-center sm:justify-end items-center gap-2">
 
