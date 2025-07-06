@@ -58,7 +58,7 @@ func main() {
 
 	// Create job handlers
 	productRepo := postgres.NewProductRepository(db)
-	scrapeHandler := jobs.NewScrapeJobHandler(db, scraperManager, productRepo)
+	scrapeHandler := jobs.NewScrapeJobHandler(db, productRepo)
 	tagHandler, err := jobs.NewTagJobHandler(db.DB)
 	if err != nil {
 		log.Fatalf("Failed to create tag job handler: %v", err)

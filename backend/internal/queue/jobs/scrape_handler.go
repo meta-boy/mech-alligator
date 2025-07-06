@@ -14,6 +14,8 @@ import (
 	"github.com/meta-boy/mech-alligator/internal/domain/product"
 	"github.com/meta-boy/mech-alligator/internal/repository/postgres"
 	"github.com/meta-boy/mech-alligator/internal/scraper"
+	"github.com/meta-boy/mech-alligator/internal/scraper/plugins/shopify"
+	"github.com/meta-boy/mech-alligator/internal/scraper/plugins/stackskb"
 )
 
 type ScrapeJobHandler struct {
@@ -22,7 +24,19 @@ type ScrapeJobHandler struct {
 	productRepo *postgres.ProductRepository
 }
 
-func NewScrapeJobHandler(db *database.DB, manager *scraper.Manager, productRepo *postgres.ProductRepository) *ScrapeJobHandler {
+func NewScrapeJobHandler(db *database.DB, productRepo *postgres.ProductRepository) *ScrapeJobHandler {
+	// Initialize scraper manager with plugins
+	manager := scraper.NewManager()
+
+	// Register plugins
+	if err := manager.RegisterPlugin(shopify.NewShopifyPlugin()); err != nil {
+		log.Printf("Warning: Failed to register Shopify plugin: %v", err)
+	}
+
+	if err := manager.RegisterPlugin(stackskb.NewStacksKBPlugin()); err != nil {
+		log.Printf("Warning: Failed to register StacksKB plugin: %v", err)
+	}
+
 	return &ScrapeJobHandler{
 		db:          db,
 		manager:     manager,
@@ -61,7 +75,7 @@ func (h *ScrapeJobHandler) Handle(ctx context.Context, j *job.Job) error {
 	start := time.Now()
 	log.Printf("Starting scrape of %s (%s)", payload.URL, payload.SourceType)
 
-	// Perform scraping
+	// Perform scraping using the manager (will auto-select the right plugin)
 	result, err := h.manager.ScrapeByType(ctx, scrapeReq)
 	if err != nil {
 		return fmt.Errorf("scraping failed: %w", err)
@@ -102,6 +116,14 @@ func (h *ScrapeJobHandler) Handle(ctx context.Context, j *job.Job) error {
 
 	log.Printf("Job %s completed: %d created, %d updated, %d total errors",
 		j.ID, saveStats.Created, saveStats.Updated, jobResult.TotalErrors)
+
+	// print errors
+	if len(jobResult.ScrapeErrors) > 0 {
+		log.Printf("Scrape errors: %v", jobResult.ScrapeErrors)
+	}
+	if len(jobResult.SaveErrors) > 0 {
+		log.Printf("Save errors: %v", jobResult.SaveErrors)
+	}
 
 	return nil
 }
@@ -217,7 +239,6 @@ type SaveStats struct {
 	Errors  int
 }
 
-// Helper handler for scrape all sites job
 type ScrapeAllSitesHandler struct{}
 
 func NewScrapeAllSitesHandler() *ScrapeAllSitesHandler {

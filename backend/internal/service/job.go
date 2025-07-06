@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/meta-boy/mech-alligator/internal/config"
@@ -40,13 +41,16 @@ func (s *JobService) CreateScrapeJob(ctx context.Context, configID string, optio
 		return nil, fmt.Errorf("failed to get reseller: %w", err)
 	}
 
+	// Determine the appropriate source type
+	sourceType := s.determineSourceType(resellerConfig.URL, reseller.Name, resellerConfig.SourceType)
+
 	// Create job payload
 	payload := job.ScrapeJobPayload{
 		ConfigID:     resellerConfig.ID,
 		ResellerID:   reseller.ID,
 		ResellerName: reseller.Name,
 		URL:          resellerConfig.URL,
-		SourceType:   resellerConfig.SourceType,
+		SourceType:   sourceType,
 		Category:     resellerConfig.Category,
 		Options:      options,
 	}
@@ -66,7 +70,7 @@ func (s *JobService) CreateScrapeJob(ctx context.Context, configID string, optio
 	j := &job.Job{
 		ID:          fmt.Sprintf("scrape_%s_%d", configID, time.Now().Unix()),
 		Type:        job.JobTypeScrapeProducts,
-		Status:      job.StatusPending, // Just set to pending
+		Status:      job.StatusPending,
 		Payload:     payloadMap,
 		Result:      make(map[string]interface{}),
 		MaxAttempts: 3,
@@ -81,6 +85,34 @@ func (s *JobService) CreateScrapeJob(ctx context.Context, configID string, optio
 	}
 
 	return j, nil
+}
+
+// Determine source type based on URL and reseller
+func (s *JobService) determineSourceType(url, resellerName, configuredType string) string {
+	// If explicitly configured, use that
+	if configuredType != "" && configuredType != "AUTO" {
+		return configuredType
+	}
+
+	// Auto-detect based on URL and reseller
+	urlLower := strings.ToLower(url)
+	resellerLower := strings.ToLower(resellerName)
+
+	switch {
+	case strings.Contains(urlLower, "stackskb.com"):
+		return "STACKS"
+	case strings.Contains(resellerLower, "stackskb"):
+		return "STACKS"
+	case strings.Contains(urlLower, ".myshopify.com") || strings.Contains(urlLower, "/products.json"):
+		return "SHOPIFY"
+	case strings.Contains(urlLower, "/products.json"):
+		return "SHOPIFY"
+	case strings.Contains(urlLower, "/store/") || strings.Contains(urlLower, "/shop/"):
+		return "STACKS"
+	default:
+		// Default fallback
+		return "SHOPIFY"
+	}
 }
 
 // CreateScrapeAllSitesJob creates individual scrape jobs for all active reseller configs
@@ -124,18 +156,18 @@ func (s *JobService) CreateScrapeAllSitesJob(ctx context.Context) (*job.Job, err
 
 	now := time.Now().UTC()
 	j := &job.Job{
-		ID:          fmt.Sprintf("scrape_all_%d", now.Unix()), // Fixed: use scrape_all prefix
-		Type:        job.JobTypeScrapeAllSites,                // Fixed: correct job type
-		Status:      job.StatusCompleted,                      // Fixed: set as completed since it just creates child jobs
+		ID:          fmt.Sprintf("scrape_all_%d", now.Unix()),
+		Type:        job.JobTypeScrapeAllSites,
+		Status:      job.StatusCompleted,
 		Payload:     payloadMap,
-		Result:      result, // Fixed: use the actual result map
+		Result:      result,
 		MaxAttempts: 1,
 		Attempts:    0,
 		ScheduledAt: now,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-		StartedAt:   &now, // Set since it's completed
-		CompletedAt: &now, // Set since it's completed
+		StartedAt:   &now,
+		CompletedAt: &now,
 	}
 
 	if err := s.queue.Enqueue(ctx, j); err != nil {
