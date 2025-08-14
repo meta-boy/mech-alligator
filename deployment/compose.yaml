@@ -1,0 +1,49 @@
+networks:
+  app_network:
+    driver: bridge
+
+services:
+  # Go API Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: api.Dockerfile
+    image: ${PROJECT_NAME}/backend:${IMAGE_TAG:-latest}
+    container_name: ${PROJECT_NAME}-backend
+    platform: linux/amd64 
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    networks:
+      - app_network
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - PORT=${BACKEND_PORT}
+      - ENVIRONMENT=${ENVIRONMENT}
+      - JWT_SECRET=${JWT_SECRET}
+    restart: unless-stopped
+
+  # Go Worker
+  worker:
+    build:
+      context: ./backend
+      dockerfile: worker.Dockerfile
+    image: ${PROJECT_NAME}/worker:${IMAGE_TAG:-latest}
+    container_name: ${PROJECT_NAME}-worker
+    platform: linux/amd64 
+    networks:
+      - app_network
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - ENVIRONMENT=${ENVIRONMENT}
+      - OLLAMA_HOST=${OLLAMA_HOST}
+    depends_on:
+      - backend
+    restart: unless-stopped
