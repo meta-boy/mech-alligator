@@ -6,7 +6,7 @@ services:
   # Go API Server
   backend:
     build:
-      context: ./backend
+      context: ../backend
       dockerfile: api.Dockerfile
     image: ${PROJECT_NAME}/backend:${IMAGE_TAG:-latest}
     container_name: ${PROJECT_NAME}-backend
@@ -29,7 +29,7 @@ services:
   # Go Worker
   worker:
     build:
-      context: ./backend
+      context: ../backend
       dockerfile: worker.Dockerfile
     image: ${PROJECT_NAME}/worker:${IMAGE_TAG:-latest}
     container_name: ${PROJECT_NAME}-worker
