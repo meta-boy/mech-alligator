@@ -8,7 +8,6 @@ services:
     build:
       context: ../backend
       dockerfile: api.Dockerfile
-    image: ${PROJECT_NAME}/backend:${IMAGE_TAG:-latest}
     container_name: ${PROJECT_NAME}-backend
     platform: linux/amd64 
     ports:
@@ -31,7 +30,6 @@ services:
     build:
       context: ../backend
       dockerfile: worker.Dockerfile
-    image: ${PROJECT_NAME}/worker:${IMAGE_TAG:-latest}
     container_name: ${PROJECT_NAME}-worker
     platform: linux/amd64 
     networks:
