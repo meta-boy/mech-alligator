@@ -25,13 +25,13 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     >
       <div className="relative">
         <div className="aspect-square overflow-hidden">
-          <Image 
-            src={product.images[0] || '/placeholder.jpg'} 
-            alt={product.name}
-            fill={true}
-            objectFit="cover"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
+              <Image 
+                src={Array.isArray(product.images) && product.images.length > 0 ? product.images[0] : '/placeholder.jpg'} 
+                alt={product.name}
+                fill={true}
+                objectFit="cover"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
         </div>
         <div className="absolute top-4 right-4 flex gap-2">
           <Badge variant="outline" className="bg-white/90">
